@@ -86,7 +86,7 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
 - **praydog** — [REFramework](https://github.com/praydog/REFramework), which runs the script.
 - The screenshot was taken with a stand-in game.
 
-If you should be credited here and are not, email <(an issue on this repository)> and it will be fixed.
+If you should be credited here and are not, open an issue on this repository and it will be fixed.
 
 ## Licence
 
