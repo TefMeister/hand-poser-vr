@@ -197,6 +197,11 @@ end
 -- ---- holding the pose -------------------------------------------------------------------------------------------------
 
 local function apply()
+    -- 2026-10-25: how many joints this script holds, for other mods that pose the same joints (Visceral RE8's open hand
+    -- stands down while a finger is held here)
+    local n = 0
+    for _ in pairs(held) do n = n + 1 end
+    _G.hand_poser_held = (target ~= nil) and n or 0
     if not target or next(held) == nil then return end
     for name, v in pairs(held) do
         local j = target.by_name[name]
