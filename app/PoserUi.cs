@@ -85,10 +85,10 @@ class PoserUi : Form {
         gameRow.Controls.Add(scriptNote);
 
         var quick = Row(32);
-        quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => n.StartsWith("l_hand_"), "left finger")));
-        quick.Controls.Add(Btn("RIGHT FINGERS", (s, e) => QuickAdd(n => n.StartsWith("r_hand_"), "right finger")));
-        quick.Controls.Add(Btn("LEFT HAND", (s, e) => QuickAdd(n => n.StartsWith("l_arm_wrist") || n == "l_hand", "left hand")));
-        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => QuickAdd(n => n.StartsWith("r_arm_wrist") || n == "r_hand", "right hand")));
+        quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "l_"), "left finger")));
+        quick.Controls.Add(Btn("RIGHT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "r_"), "right finger")));
+        quick.Controls.Add(Btn("LEFT HAND", (s, e) => QuickAdd(n => n.StartsWith("l_arm_wrist") || n.ToLowerInvariant() == "l_hand", "left hand")));
+        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => QuickAdd(n => n.StartsWith("r_arm_wrist") || n.ToLowerInvariant() == "r_hand", "right hand")));
         quick.Controls.Add(Btn("CLEAR ALL", (s, e) => Change(() => model.Clear())));
 
         var filterRow = Row(30);
@@ -220,6 +220,15 @@ class PoserUi : Form {
         RequestSend();
         try { model.Autosave(); } catch (IOException) { }
         UpdateStatus();
+    }
+
+    // RE2 / RE3 name the fingers l_hand_index_0 ...; Village (and RE7) L_IndexF1 ... L_Thumb3 (2026-10-24)
+    static readonly string[] FingerWords = { "index", "middle", "ring", "pinky", "thumb" };
+    static bool IsFinger(string n, string side) {
+        string l = n.ToLowerInvariant();
+        if (l.StartsWith(side + "hand_")) return true;
+        foreach (var f in FingerWords) if (l.StartsWith(side + f)) return true;
+        return false;
     }
 
     void QuickAdd(Func<string, bool> match, string what) {
