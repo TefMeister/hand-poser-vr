@@ -1,5 +1,5 @@
-// Skin.cs -- the look shared by Hand Poser and Grab Zones (2026-10-25; the same file in both: hand-poser-vr/app/Skin.cs and
-// visceral-re8-vr/dev-archive/native/zones-app/app/Skin.cs, keep them the same).
+// Skin.cs -- the look shared by the helper apps (2026-10-25). The same file in three places, keep them the same:
+// hand-poser-vr/app/Skin.cs (the one to edit), window-view-vr/app/Skin.cs, visceral-re8-vr/dev-archive/native/zones-app/app/Skin.cs.
 //
 //   FancySlider  a slider drawn by us. The stock Windows TrackBar paints itself white for a moment before its dark colours, and
 //                Window View photographs the window many times a second (PrintWindow), so the white moment showed in the
@@ -7,8 +7,9 @@
 //                This one paints in one go into a buffer: a rounded track, a glowing gradient fill (from zero on a signed
 //                slider), quarter dots, and a round thumb that swells and glows while held. Click anywhere to jump and drag,
 //                the wheel and the arrow keys step, Page Up / Down take big steps, Home / End go to the ends.
-//   Backdrop     the window's background: the app's own icon, pixelated and faint, behind everything (Tefa: "make the window
-//                background have a pixelated image of the ... icon").
+//   Backdrop     the window's background: the app's own icon, finely pixelated and faint, with the Lanes theme's scan lines
+//                and rolling light (Tefa: "make the window background have a pixelated image of the ... icon", then "in the
+//                same style as our Lanes plugin background, only dim and coloured, not green").
 //   SkinPanel    a panel that paints the backdrop at its own place in the window, then its Tint (a see-through colour) over it.
 //                Children with a Transparent BackColor show it through.
 using System;
@@ -17,34 +18,45 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 
+// In the style of the Lanes terminal theme (lanes-plugin theme/green-monitor-lanes/lanes.hlsl), dim and in the icon's own
+// colours instead of green: the icon finely pixelated and faint, scan lines on the picture every 4 pixels, a soft band of light
+// rolling from the top to the bottom every 9 seconds (the theme's ROLL_SECONDS, ROLL_HEIGHT and its -0.2 .. 1.2 travel), and
+// darker corners. The still part is worked out once per window size; each frame only the rows under the band are redone.
 static class Backdrop {
-    const int PIXELS = 30;          // the icon is shrunk to this many pixels across, then blown up square-edged
-    const float STRENGTH = 0.42f;   // how strongly it shows through the dark background (0 = not at all)
-    const float FILL = 0.86f;       // its size as a share of the window's smaller side
+    const int BLOCK = 6;                 // screen pixels per icon pixel (finer than the first version's ~17)
+    const float FILL = 0.86f;            // the picture's size as a share of the window's smaller side
+    const float PIC_STRENGTH = 0.26f;    // how faint the picture is (lanes.hlsl 0.20, a touch brighter: no glow here)
+    const float ROLL_STRENGTH = 0.30f;   // how much the band lights it up (lanes.hlsl 0.25)
+    const int STRIPE_PERIOD = 4;         // pixels per scan-line cycle, as lanes.hlsl
+    const float STRIPE_DARKEN = 0.55f;   // how dark the dark line is, as lanes.hlsl
+    const float ROLL_SECONDS = 9f, ROLL_HEIGHT = 0.10f;   // as lanes.hlsl
+    const float VIGNETTE = 1.0f;         // corner darkening (lanes.hlsl 1.35; gentler, the window has text to read)
+    const int FRAME_MS = 50;             // the band moves 20 times a second
+    const float BAND_REACH = 0.19f;      // rows further than this (share of the height) from the band's middle are left alone (light there < 3 %)
 
-    static Bitmap tiny;             // the shrunken icon
-    static Bitmap page;             // the whole window's background at its current size
-    static Color back;
+    static Bitmap icon;                  // the icon's biggest picture
     static Form owner;
+    static Color back;
+    static int W, H;
+    static int[] still, lit, now;        // the background without the band, the band's extra light, this frame (0xAARRGGBB)
+    static Bitmap page;
+    static int bandA = -1, bandB = -1;   // the rows the band covered last frame
+    static readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+    static Timer timer;
 
     public static void Init(Form form, string iconPath, Color background) {
         owner = form; back = background;
-        try {
-            using (var big = LargestPicture(iconPath)) {
-                tiny = new Bitmap(PIXELS, PIXELS, PixelFormat.Format32bppArgb);
-                using (var g = Graphics.FromImage(tiny)) {
-                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                    g.DrawImage(big, new Rectangle(0, 0, PIXELS, PIXELS));
-                }
-            }
-        } catch (Exception) { tiny = null; }
+        try { icon = LargestPicture(iconPath); } catch (Exception) { icon = null; }
         form.Resize += (s, e) => { Rebuild(); form.Invalidate(true); };
         Rebuild();
+        timer = new Timer { Interval = FRAME_MS };
+        timer.Tick += (s, e) => Step();
+        timer.Start();
     }
 
     // The biggest picture inside an .ico. Its large sizes are stored as PNG, which .NET Framework's Icon class draws blank, so
     // the file's directory is read and a PNG entry is opened as an image; an old-style entry falls back to the Icon class.
-    static Bitmap LargestPicture(string path) {
+    public static Bitmap LargestPicture(string path) {
         byte[] f = System.IO.File.ReadAllBytes(path);
         int count = BitConverter.ToUInt16(f, 4), best = -1, bestSide = 0;
         for (int i = 0; i < count; i++) {
@@ -58,37 +70,112 @@ static class Backdrop {
         using (var ico = new Icon(path, bestSide, bestSide)) return ico.ToBitmap();
     }
 
+    static int[] Pixels(Bitmap b) {
+        var data = b.LockBits(new Rectangle(0, 0, b.Width, b.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        var px = new int[b.Width * b.Height];
+        System.Runtime.InteropServices.Marshal.Copy(data.Scan0, px, 0, px.Length);
+        b.UnlockBits(data);
+        return px;
+    }
+
     static void Rebuild() {
         if (owner == null) return;
         Size sz = owner.ClientSize;
         if (sz.Width < 1 || sz.Height < 1) return;
-        var b = new Bitmap(sz.Width, sz.Height, PixelFormat.Format32bppPArgb);
-        using (var g = Graphics.FromImage(b)) {
-            g.Clear(back);
-            if (tiny != null) {
-                int side = (int)(Math.Min(sz.Width, sz.Height) * FILL);
-                side -= side % PIXELS;   // whole pixels, so every square is the same size
-                var dst = new Rectangle((sz.Width - side) / 2, (sz.Height - side) / 2, side, side);
-                g.InterpolationMode = InterpolationMode.NearestNeighbor;
-                g.PixelOffsetMode = PixelOffsetMode.Half;
-                var cm = new ColorMatrix { Matrix33 = STRENGTH };
-                using (var ia = new ImageAttributes()) {
-                    ia.SetColorMatrix(cm);
-                    g.DrawImage(tiny, dst, 0, 0, PIXELS, PIXELS, GraphicsUnit.Pixel, ia);
+        W = sz.Width; H = sz.Height;
+        int side = (int)(Math.Min(W, H) * FILL), n = Math.Max(1, side / BLOCK);
+        side = n * BLOCK;
+        int left = (W - side) / 2, top = (H - side) / 2;
+        int[] ip = null;
+        if (icon != null) using (var tiny = new Bitmap(n, n, PixelFormat.Format32bppArgb)) {
+            using (var g = Graphics.FromImage(tiny)) { g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.DrawImage(icon, new Rectangle(0, 0, n, n)); }
+            ip = Pixels(tiny);
+        }
+        still = new int[W * H]; lit = new int[W * H]; now = new int[W * H];
+        float br = back.R, bg = back.G, bb = back.B;
+        for (int y = 0; y < H; y++) {
+            float dy = (float)y / H - 0.5f;
+            float strip = (y % STRIPE_PERIOD) < STRIPE_PERIOD / 2 ? 1f - STRIPE_DARKEN : 1f;
+            int iy = y - top;
+            for (int x = 0; x < W; x++) {
+                float dx = (float)x / W - 0.5f;
+                float vig = Math.Max(0f, Math.Min(1f, 1f - (dx * dx + dy * dy) * VIGNETTE));
+                float pr = 0, pg = 0, pb = 0;
+                int ix = x - left;
+                if (ip != null && ix >= 0 && iy >= 0 && ix < side && iy < side) {
+                    int c = ip[(iy / BLOCK) * n + ix / BLOCK];
+                    float a = ((c >> 24) & 255) / 255f * strip;
+                    pr = ((c >> 16) & 255) * a; pg = ((c >> 8) & 255) * a; pb = (c & 255) * a;
                 }
+                int i = y * W + x;
+                still[i] = Pack((br + pr * PIC_STRENGTH) * vig, (bg + pg * PIC_STRENGTH) * vig, (bb + pb * PIC_STRENGTH) * vig);
+                lit[i] = Pack(pr * ROLL_STRENGTH * vig, pg * ROLL_STRENGTH * vig, pb * ROLL_STRENGTH * vig);
             }
         }
+        Array.Copy(still, now, still.Length);
         var old = page;
-        page = b;
+        page = new Bitmap(W, H, PixelFormat.Format32bppPArgb);
+        Write(0, H);
         if (old != null) old.Dispose();
+        bandA = bandB = -1;
+        Step();
     }
 
-    // paint the part of the background that lies under control c
-    public static void PaintUnder(Control c, Graphics g) {
+    static int Pack(float r, float g, float b) {
+        int ir = r > 255 ? 255 : (int)r, ig = g > 255 ? 255 : (int)g, ib = b > 255 ? 255 : (int)b;
+        return unchecked((int)0xFF000000) | (ir << 16) | (ig << 8) | ib;
+    }
+
+    static void Write(int y0, int y1) {   // rows y0 .. y1 of `now` into the page bitmap
+        if (y1 <= y0) return;
+        var data = page.LockBits(new Rectangle(0, y0, W, y1 - y0), ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+        for (int y = y0; y < y1; y++) System.Runtime.InteropServices.Marshal.Copy(now, y * W, data.Scan0 + (y - y0) * data.Stride, W);
+        page.UnlockBits(data);
+    }
+
+    static void Step() {
+        if (page == null || owner == null || owner.WindowState == FormWindowState.Minimized) return;
+        float t = (float)clock.Elapsed.TotalSeconds;
+        float rollY = (t / ROLL_SECONDS - (float)Math.Floor(t / ROLL_SECONDS)) * 1.4f - 0.2f;
+        int a = Math.Max(0, (int)((rollY - BAND_REACH) * H)), b = Math.Min(H, (int)((rollY + BAND_REACH) * H));
+        bool shown = b > a;
+        int y0 = shown ? a : bandA, y1 = shown ? b : bandB;
+        if (bandA >= 0) { y0 = Math.Min(y0 < 0 ? bandA : y0, bandA); y1 = Math.Max(y1, bandB); }
+        if (y0 < 0 || y1 <= y0) { bandA = bandB = -1; return; }
+        for (int y = y0; y < y1; y++) {
+            int row = y * W;
+            float d = ((float)y / H - rollY) / ROLL_HEIGHT;
+            float k = (float)Math.Exp(-d * d);
+            if (!shown || y < a || y >= b || k < 0.004f) { Array.Copy(still, row, now, row, W); continue; }
+            for (int x = 0; x < W; x++) {
+                int i = row + x, l = lit[i];
+                if ((l & 0xFFFFFF) == 0) { now[i] = still[i]; continue; }
+                int s = still[i];
+                int r = ((s >> 16) & 255) + (int)(((l >> 16) & 255) * k), g = ((s >> 8) & 255) + (int)(((l >> 8) & 255) * k), bl = (s & 255) + (int)((l & 255) * k);
+                now[i] = unchecked((int)0xFF000000) | ((r > 255 ? 255 : r) << 16) | ((g > 255 ? 255 : g) << 8) | (bl > 255 ? 255 : bl);
+            }
+        }
+        Write(y0, y1);
+        if (shown) { bandA = a; bandB = b; } else { bandA = bandB = -1; }
+        owner.Invalidate(new Rectangle(0, y0, W, y1 - y0), true);
+    }
+
+    // paint the part of the background that lies under control c; only the clip rectangle is copied, so a frame that
+    // changes a strip of the window costs that strip, not the whole picture once per control
+    public static void PaintUnder(Control c, Graphics g, Rectangle clip) {
         if (page == null || owner == null || !owner.IsHandleCreated || !c.IsHandleCreated) { g.Clear(back); return; }
         Point off = owner.PointToClient(c.PointToScreen(Point.Empty));
-        g.DrawImageUnscaled(page, -off.X, -off.Y);
+        var src = Rectangle.Intersect(new Rectangle(clip.X + off.X, clip.Y + off.Y, clip.Width, clip.Height), new Rectangle(0, 0, W, H));
+        if (src.Width <= 0 || src.Height <= 0) return;
+        var oldMode = g.CompositingMode;
+        g.CompositingMode = CompositingMode.SourceCopy;
+        g.InterpolationMode = InterpolationMode.NearestNeighbor;
+        g.DrawImage(page, new Rectangle(src.X - off.X, src.Y - off.Y, src.Width, src.Height), src, GraphicsUnit.Pixel);
+        g.CompositingMode = oldMode;
     }
+
+    // the whole window painted in one go into a buffer (WS_EX_COMPOSITED), so the moving band never makes anything flicker
+    public static CreateParams Composited(CreateParams cp) { cp.ExStyle |= 0x02000000; return cp; }
 }
 
 class SkinPanel : Panel {
@@ -103,12 +190,12 @@ class SkinPanel : Panel {
     }
 
     protected override void OnPaintBackground(PaintEventArgs e) {
-        Backdrop.PaintUnder(this, e.Graphics);
-        if (tint.A > 0) using (var br = new SolidBrush(tint)) e.Graphics.FillRectangle(br, ClientRectangle);
+        Backdrop.PaintUnder(this, e.Graphics, e.ClipRectangle);
+        if (tint.A > 0) using (var br = new SolidBrush(tint)) e.Graphics.FillRectangle(br, e.ClipRectangle);
     }
 }
 
-// a label that never flickers while its text changes four times a second over the backdrop
+// a label that never flickers while its text changes over the backdrop
 class SkinLabel : Label {
     public SkinLabel() {
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.SupportsTransparentBackColor, true);

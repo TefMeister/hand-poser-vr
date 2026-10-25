@@ -60,7 +60,10 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   a finger never makes it jump.
 - The sliders are drawn by the app itself (`app\Skin.cs`, 2026-10-25). The stock Windows slider paints itself white for a
   moment before its dark colours, and Window View photographs the window many times a second, so that moment showed as a
-  random white flicker. The window's background is the app's own icon, pixelated and faint.
+  random white flicker. The window's background is the app's own icon, finely pixelated, with the scan lines and the
+  slowly rolling light of the Lanes terminal theme, dim and in colour.
+- The icons of the four helper apps (Hand Poser, Grab Zones, Window View, Hand Freeze) share one tile, a dark rounded
+  square with a blue edge; `toolsamily_icons.py` draws all four.
 
 ## Tested
 
