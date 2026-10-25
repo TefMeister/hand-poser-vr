@@ -19,6 +19,7 @@ local STATE_FILE = DIR .. "state.json"
 local COMMAND_FILE = DIR .. "command.json"
 local POLL_EVERY_FRAMES = 3        -- how often command.json is looked at
 local STATE_EVERY_SEC = 1.0        -- how often state.json is written when nothing changed
+local STATE_LIVE_SEC = 0.12        -- 2026-10-25: while joints are held or read, often enough for live numbers in the window
 local RELINK_EVERY_SEC = 2.0       -- how often the player is looked for again when it was not found
 local DEG = 180.0 / math.pi
 
@@ -170,6 +171,43 @@ local function angles_of(name)
     return {e.x * DEG, e.y * DEG, e.z * DEG}
 end
 
+-- 2026-10-25 (Tefa: "can the other sliders that are affected also change their values in real time as i change something
+-- else that is also affected by this group of moving parts?"): a joint's own (local) angles never change when a joint above it
+-- turns, so each held or read joint is also reported as turned "from the hand" (relative to that side's hand joint), which
+-- does change live. Euler angles in degrees, X then Y then Z, from the relative quaternion.
+local HAND_NAMES = { l = { "L_Hand", "l_hand", "l_arm_wrist" }, r = { "R_Hand", "r_hand", "r_arm_wrist" } }
+local function hand_of(name)
+    local side = name:sub(1, 2):lower()
+    local list = side == "l_" and HAND_NAMES.l or side == "r_" and HAND_NAMES.r or nil
+    if not list or not target then return nil end
+    for _, n in ipairs(list) do
+        local j = target.by_name[n]
+        if j and n ~= name then return j end
+    end
+    return nil
+end
+local function euler_deg(q)   -- x, y, z, w -> degrees about X, Y, Z (applied Z then Y then X)
+    local x, y, z, w = q.x, q.y, q.z, q.w
+    local sx = 2 * (w * x + y * z); local cx = 1 - 2 * (x * x + y * y)
+    local sy = 2 * (w * y - z * x); if sy > 1 then sy = 1 elseif sy < -1 then sy = -1 end
+    local sz = 2 * (w * z + x * y); local cz = 1 - 2 * (y * y + z * z)
+    return { math.atan(sx, cx) * DEG, math.asin(sy) * DEG, math.atan(sz, cz) * DEG }
+end
+local function from_hand(name)
+    local j = target and target.by_name[name]
+    local h = hand_of(name)
+    if not j or not h then return nil end
+    local ok, out = pcall(function()
+        local a, b = h:call("get_Rotation"), j:call("get_Rotation")
+        -- inverse(a) * b, written out (unit quaternions)
+        local ax, ay, az, aw = -a.x, -a.y, -a.z, a.w
+        local q = { x = aw * b.x + ax * b.w + ay * b.z - az * b.y, y = aw * b.y - ax * b.z + ay * b.w + az * b.x,
+                    z = aw * b.z + ax * b.y - ay * b.x + az * b.w, w = aw * b.w - ax * b.x - ay * b.y - az * b.z }
+        return euler_deg(q)
+    end)
+    return ok and out or nil
+end
+
 local function write_state()
     last_state_t = now()
     write_state_now = false
@@ -182,6 +220,7 @@ local function write_state()
         error = last_error,
         joints = {},
         angles = {},
+        rel = {},
     }
     if target then
         for i, j in ipairs(target.joints) do st.joints[i] = {j.name, j.parent} end
@@ -189,6 +228,7 @@ local function write_state()
         for _, name in ipairs(want_read) do
             if st.angles[name] == nil then st.angles[name] = angles_of(name) end
         end
+        for name, _ in pairs(st.angles) do st.rel[name] = from_hand(name) end
     end
     local ok, err = pcall(function() json.dump_file(STATE_FILE, st, 0) end)
     if ok then writes = writes + 1 else last_error = tostring(err) end
@@ -222,7 +262,8 @@ re.on_frame(function()
         target = nil
         if now() - last_relink_t > RELINK_EVERY_SEC then relink() end
     end
-    if write_state_now or now() - last_state_t > STATE_EVERY_SEC then
+    local every = (next(held) ~= nil or #want_read > 0) and STATE_LIVE_SEC or STATE_EVERY_SEC
+    if write_state_now or now() - last_state_t > every then
         local ok, err = pcall(write_state)
         if not ok then last_error = tostring(err) end
     end

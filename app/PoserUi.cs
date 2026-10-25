@@ -11,7 +11,7 @@ using System.Linq;
 using System.Windows.Forms;
 
 class PoserUi : Form {
-    const int POLL_MS = 250, COMMAND_DEBOUNCE_MS = 30, FIND_GAME_EVERY_MS = 5000;
+    const int POLL_MS = 100, COMMAND_DEBOUNCE_MS = 30, FIND_GAME_EVERY_MS = 5000;   // 2026-10-25: 100 ms, for the live "from the hand" numbers
     const int SLIDER_STEPS_PER_DEG = 10;   // sliders count tenths of a degree
     static readonly Color Back = Color.FromArgb(28, 30, 38), Panel2 = Color.FromArgb(38, 41, 52), Ink = Color.FromArgb(232, 232, 236);
     static readonly Color Dim = Color.FromArgb(150, 155, 170), Accent = Color.FromArgb(70, 120, 200), Lit = Color.FromArgb(96, 78, 30);
@@ -280,10 +280,13 @@ class PoserUi : Form {
     }
 
     // ---- rows ---------------------------------------------------------------------------------------------------------------
+    readonly List<GroupRow> groupRows = new List<GroupRow>();
     void RebuildRows() {
         rowsPanel.SuspendLayout();
         foreach (var r in rows) r.Dispose();
+        foreach (var g in groupRows) g.Dispose();
         rows.Clear();
+        groupRows.Clear();
         rowsPanel.Controls.Clear();
         for (int i = model.Rows.Count - 1; i >= 0; i--) {     // docked Top: last added ends up first, so add in reverse
             var row = new JointRow(model.Rows[i], this);
@@ -291,7 +294,76 @@ class PoserUi : Form {
             rowsPanel.Controls.Add(row);
         }
         rows.Reverse();
+        var groups = model.Groups();                           // the finger groups go above the joints
+        for (int i = groups.Count - 1; i >= 0; i--) {
+            var g = new GroupRow(groups[i].Key, groups[i].Value, this);
+            groupRows.Add(g);
+            rowsPanel.Controls.Add(g);
+        }
         rowsPanel.ResumeLayout();
+    }
+
+    // a finger group's bend slider: while dragged it adds its value to every joint of the finger on the chosen axis, from where
+    // they stood when it was taken hold of; let go, it springs back to 0 (a nudge, as often as needed). The joints' own
+    // sliders follow live.
+    internal void GroupPressed() { model.Mark(); UpdateStatus(); }
+    internal void GroupMoved() { foreach (var row in rows) row.PullFromModel(); RequestSend(); }
+    internal void GroupReleased() { try { model.Autosave(); } catch (IOException) { } }
+    internal string GroupAxis(string group) { return settings.Get("axis." + group, "Z"); }
+    internal void SetGroupAxis(string group, string axis) { settings.Set("axis." + group, axis); }
+
+    class GroupRow : SkinPanel {
+        readonly string group;
+        readonly List<Row> members;
+        readonly PoserUi ui;
+        readonly FancySlider bend;
+        readonly Button axis;
+        readonly Label value;
+        double[] bases;
+
+        public GroupRow(string group, List<Row> members, PoserUi ui) {
+            this.group = group; this.members = members; this.ui = ui;
+            Dock = DockStyle.Top; Height = 40; Tint = Color.FromArgb(185, 40, 64, 96); Padding = new Padding(6, 2, 6, 2);
+            var name = new SkinLabel { Text = group + "  (" + members.Count + " joints): bend all", AutoSize = true, ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold), Location = new Point(6, 11) };
+            axis = ui.Btn("axis " + ui.GroupAxis(group), (s, e) => NextAxis(), 64);
+            axis.Height = 26;
+            value = new SkinLabel { AutoSize = true, ForeColor = Dim, Location = new Point(0, 11) };
+            bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 30, Signed = true };
+            bend.Pressed += () => { ui.GroupPressed(); bases = members.Select(r => Axis(r)).ToArray(); };
+            bend.Scroll += (o, e) => Apply();
+            bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
+            Controls.Add(name); Controls.Add(axis); Controls.Add(bend); Controls.Add(value);
+            Layout += (o, e) => {
+                int w = ClientSize.Width;
+                axis.Location = new Point(w - axis.Width - 6, 7);
+                value.Location = new Point(axis.Left - 70, 11);
+                int left = name.Right + 10;
+                bend.Location = new Point(left, 5);
+                bend.Width = Math.Max(60, value.Left - left - 6);
+            };
+            ShowValue();
+        }
+        string AxisName() { return ui.GroupAxis(group); }
+        double Axis(Row r) { string a = AxisName(); return a == "X" ? r.X : a == "Y" ? r.Y : r.Z; }
+        void NextAxis() {
+            string a = AxisName(), next = a == "X" ? "Y" : a == "Y" ? "Z" : "X";
+            ui.SetGroupAxis(group, next);
+            axis.Text = "axis " + next;
+        }
+        void Apply() {
+            if (bases == null) return;
+            double d = bend.Value / (double)SLIDER_STEPS_PER_DEG;
+            string a = AxisName();
+            for (int i = 0; i < members.Count; i++) {
+                var r = members[i];
+                double v = PoseModel.Clamp(bases[i] + d);
+                if (a == "X") r.X = v; else if (a == "Y") r.Y = v; else r.Z = v;
+                r.Known = true;
+            }
+            ShowValue();
+            ui.GroupMoved();
+        }
+        void ShowValue() { value.Text = string.Format("{0:+0.0;-0.0;0.0} deg", bend.Value / (double)SLIDER_STEPS_PER_DEG); }
     }
 
     // called by a row: a slider is about to move (snapshot + light up the children) / moved / let go
@@ -383,7 +455,10 @@ class PoserUi : Form {
         int Clamp(int v) { return Math.Max(sliders[0].Minimum, Math.Min(sliders[0].Maximum, v)); }
 
         void ShowValues() {
-            values.Text = Model.Known ? string.Format("X {0,7:0.0}   Y {1,7:0.0}   Z {2,7:0.0}", Model.X, Model.Y, Model.Z) : "reading from the game...";
+            string own = Model.Known ? string.Format("X {0,7:0.0}   Y {1,7:0.0}   Z {2,7:0.0}", Model.X, Model.Y, Model.Z) : "reading from the game...";
+            // 2026-10-25: the joint as seen from the hand, live: it changes when a joint above it turns
+            if (Model.Known && Model.RelKnown) own += string.Format("      from the hand  {0:0} / {1:0} / {2:0}", Model.RelX, Model.RelY, Model.RelZ);
+            values.Text = own;
         }
     }
 }

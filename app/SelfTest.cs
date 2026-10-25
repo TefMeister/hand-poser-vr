@@ -45,6 +45,8 @@ static class SelfTest {
         string cmd = model.Command();
         var c = Json.Obj(Json.Parse(cmd));
         Check("command asks to read 3, holds none", Json.Arr(c["want_read"]).Count == 3 && Json.Obj(c["hold"]).Count == 0 && Json.Num(c["seq"], 0) == 1);
+        Check("finger groups: L_IndexF1 and l_hand_index_0 name their finger, a lone joint none",
+              PoseModel.GroupOf("L_IndexF1") == "L_IndexF" && PoseModel.GroupOf("l_hand_index_0") == "l_hand_index" && PoseModel.GroupOf("L_Hand") == null);
         link.WriteCommand(cmd);
         Check("command.json written", File.Exists(link.CommandFile) && File.ReadAllText(link.CommandFile) == cmd);
 

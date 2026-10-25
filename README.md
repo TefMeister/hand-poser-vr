@@ -62,6 +62,14 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   moment before its dark colours, and Window View photographs the window many times a second, so that moment showed as a
   random white flicker. The window's background is the app's own icon, finely pixelated, with the scan lines and the
   slowly rolling light of the Lanes terminal theme, dim and in colour.
+- Finger groups (2026-10-25, Tefa: *"one slider bends a whole finger and all its joints follow"*): joints whose names
+  differ only in a trailing number (`L_IndexF1..3`, `l_hand_index_0..2`) get a **bend all** bar above the joints. Drag it
+  and every joint of that finger turns by the same amount on the chosen axis (**axis X / Y / Z**, remembered per finger),
+  their own sliders following live; let go and the bar springs back to 0, so it nudges as often as needed. UNDO takes a
+  whole drag back.
+- **From the hand** (2026-10-25, Tefa: *"can the other sliders that are affected also change their values in real time"*):
+  a joint's own angles never change when a joint above it turns, so each row also shows the joint as turned from the hand,
+  reported by the game several times a second while anything is held, which does change live.
 - The icons of the four helper apps (Hand Poser, Grab Zones, Window View, Hand Freeze) share one tile, a dark rounded
   square with a blue edge; `tools/family_icons.py` draws all four.
 

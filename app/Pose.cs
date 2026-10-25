@@ -12,6 +12,10 @@ class Row {
     public string Name;
     public double X, Y, Z;
     public bool Known;
+    // 2026-10-25: the joint as turned "from the hand" (the game reports it several times a second): it changes live when a
+    // joint above it turns, which the joint's own angles never do. Shown only; never saved or sent.
+    public double RelX, RelY, RelZ;
+    public bool RelKnown;
     public Row Copy() { return new Row { Name = Name, X = X, Y = Y, Z = Z, Known = Known }; }
 }
 
@@ -156,7 +160,36 @@ class PoseModel {
                 r.Known = true;
             }
         }
+        var rel = Json.Obj(st.ContainsKey("rel") ? st["rel"] : null);
+        if (rel != null) {
+            foreach (var r in Rows) {
+                object v;
+                var a = rel.TryGetValue(r.Name, out v) ? Json.Arr(v) : null;
+                r.RelKnown = a != null && a.Count >= 3;
+                if (r.RelKnown) { r.RelX = Json.Num(a[0], 0); r.RelY = Json.Num(a[1], 0); r.RelZ = Json.Num(a[2], 0); }
+            }
+        }
         return skeletonChanged;
+    }
+
+    // ---- finger groups (2026-10-25, Tefa: "one slider bends a whole finger and all its joints follow"): joints whose names
+    // differ only in a trailing number (L_IndexF1..3, l_hand_index_0..2) are one finger
+    public static string GroupOf(string name) {
+        string g = name.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+        g = g.TrimEnd('_');
+        return g.Length > 0 && g.Length < name.Length ? g : null;
+    }
+    public List<KeyValuePair<string, List<Row>>> Groups() {
+        var groups = new Dictionary<string, List<Row>>();
+        var order = new List<string>();
+        foreach (var r in Rows) {
+            string g = GroupOf(r.Name);
+            if (g == null) continue;
+            List<Row> list;
+            if (!groups.TryGetValue(g, out list)) { list = new List<Row>(); groups[g] = list; order.Add(g); }
+            list.Add(r);
+        }
+        return order.Where(g => groups[g].Count >= 2).Select(g => new KeyValuePair<string, List<Row>>(g, groups[g])).ToList();
     }
 
     // ---- command.json to the game -------------------------------------------------------------------------------------
