@@ -67,7 +67,7 @@ class PoserUi : Form {
 
     // ---- building the window --------------------------------------------------------------------------------------------
     Button Btn(string text, EventHandler onClick, int width = 0) {
-        var b = new Button { Text = text, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(62, 67, 86), ForeColor = Ink, Height = 26, AutoSize = width == 0, Margin = new Padding(3) };
+        var b = new SkinButton { Text = text, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(62, 67, 86), ForeColor = Ink, Height = 26, AutoSize = width == 0, Margin = new Padding(3) };
         b.FlatAppearance.BorderSize = 0;
         if (width > 0) b.Width = width;
         b.Click += onClick;
