@@ -31,7 +31,7 @@ class PoserUi : Form {
     TextBox filter, buildName;
     ListBox allJoints;
     ComboBox builds;
-    Panel rowsPanel;
+    SkinPanel rowsPanel;
     readonly List<JointRow> rows = new List<JointRow>();
 
     public PoserUi(string gameArg, bool demo) {
@@ -42,11 +42,14 @@ class PoserUi : Form {
         ClientSize = new Size(600, 760);
         MinimumSize = new Size(520, 560);
         StartPosition = FormStartPosition.CenterScreen;
-        try { Icon = new Icon(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hand_poser.ico")); } catch (Exception) { }
+        string ico = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hand_poser.ico");
+        try { Icon = new Icon(ico); } catch (Exception) { }
+        DoubleBuffered = true;
+        Backdrop.Init(this, ico, Back);   // the icon, pixelated and faint, behind the whole window (Tefa 2026-10-25)
 
         BuildTop();
         BuildBottom();
-        rowsPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Back, Padding = new Padding(6, 4, 6, 4) };
+        rowsPanel = new SkinPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(6, 4, 6, 4) };
         Controls.Add(rowsPanel);
         rowsPanel.BringToFront();
 
@@ -59,9 +62,11 @@ class PoserUi : Form {
         UpdateStatus();
     }
 
+    protected override void OnPaintBackground(PaintEventArgs e) { Backdrop.PaintUnder(this, e.Graphics); }
+
     // ---- building the window --------------------------------------------------------------------------------------------
     Button Btn(string text, EventHandler onClick, int width = 0) {
-        var b = new Button { Text = text, FlatStyle = FlatStyle.Flat, BackColor = Panel2, ForeColor = Ink, Height = 26, AutoSize = width == 0, Margin = new Padding(3) };
+        var b = new Button { Text = text, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(62, 67, 86), ForeColor = Ink, Height = 26, AutoSize = width == 0, Margin = new Padding(3) };
         b.FlatAppearance.BorderSize = 0;
         if (width > 0) b.Width = width;
         b.Click += onClick;
@@ -69,19 +74,19 @@ class PoserUi : Form {
     }
 
     FlowLayoutPanel Row(int height) {
-        return new FlowLayoutPanel { Dock = DockStyle.Top, Height = height, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Back, Padding = new Padding(4, 2, 4, 0) };
+        return new FlowLayoutPanel { Dock = DockStyle.Top, Height = height, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(4, 2, 4, 0) };
     }
 
     void BuildTop() {
-        var top = new Panel { Dock = DockStyle.Top, Height = 214, BackColor = Back };
+        var top = new SkinPanel { Dock = DockStyle.Top, Height = 214, Tint = Color.FromArgb(120, Back) };
         Controls.Add(top);
 
-        status = new Label { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
+        status = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
         var gameRow = Row(32);
         gameRow.Controls.Add(Btn("GAME FOLDER...", (s, e) => PickFolder()));
         scriptButton = Btn("PUT THE SCRIPT INTO THE GAME", (s, e) => InstallScript());
         gameRow.Controls.Add(scriptButton);
-        scriptNote = new Label { AutoSize = true, ForeColor = Dim, Padding = new Padding(4, 6, 0, 0) };
+        scriptNote = new SkinLabel { AutoSize = true, ForeColor = Dim, Padding = new Padding(4, 6, 0, 0) };
         gameRow.Controls.Add(scriptNote);
 
         var quick = Row(32);
@@ -92,14 +97,14 @@ class PoserUi : Form {
         quick.Controls.Add(Btn("CLEAR ALL", (s, e) => Change(() => model.Clear())));
 
         var filterRow = Row(30);
-        filterRow.Controls.Add(new Label { Text = "any joint:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
+        filterRow.Controls.Add(new SkinLabel { Text = "any joint:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         filter = new TextBox { Width = 200, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.FixedSingle };
         filter.TextChanged += (s, e) => FillJointList();
         filterRow.Controls.Add(filter);
         filterRow.Controls.Add(Btn("ADD", (s, e) => AddSelected()));
         allJoints = new ListBox { Dock = DockStyle.Top, Height = 84, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.None, IntegralHeight = false };
         allJoints.DoubleClick += (s, e) => AddSelected();
-        var listHolder = new Panel { Dock = DockStyle.Top, Height = 88, Padding = new Padding(8, 0, 8, 4), BackColor = Back };
+        var listHolder = new Panel { Dock = DockStyle.Top, Height = 88, Padding = new Padding(8, 0, 8, 4), BackColor = Color.Transparent };
         listHolder.Controls.Add(allJoints);
 
         // docked controls stack bottom-up in the order added, so add in reverse
@@ -111,18 +116,18 @@ class PoserUi : Form {
     }
 
     void BuildBottom() {
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 70, BackColor = Back };
+        var bottom = new SkinPanel { Dock = DockStyle.Bottom, Height = 70, Tint = Color.FromArgb(120, Back) };
         Controls.Add(bottom);
         var one = Row(32);
         undoButton = Btn("UNDO", (s, e) => { model.Undo(); AfterModelChange(); });
         redoButton = Btn("REDO", (s, e) => { model.Redo(); AfterModelChange(); });
         one.Controls.Add(undoButton); one.Controls.Add(redoButton);
-        one.Controls.Add(new Label { Text = "   build name:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
+        one.Controls.Add(new SkinLabel { Text = "   build name:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         buildName = new TextBox { Width = 170, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.FixedSingle };
         one.Controls.Add(buildName);
         one.Controls.Add(Btn("SAVE BUILD", (s, e) => SaveBuild()));
         var two = Row(32);
-        two.Controls.Add(new Label { Text = "saved builds:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
+        two.Controls.Add(new SkinLabel { Text = "saved builds:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         builds = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Panel2, ForeColor = Ink, FlatStyle = FlatStyle.Flat };
         two.Controls.Add(builds);
         two.Controls.Add(Btn("LOAD", (s, e) => { if (builds.SelectedItem != null) Change(() => model.LoadBuild((string)builds.SelectedItem)); }));
@@ -315,26 +320,26 @@ class PoserUi : Form {
     }
 
     // ---- one joint: name, values, three sliders, RESET, remove ------------------------------------------------------------
-    class JointRow : Panel {
+    class JointRow : SkinPanel {
         public readonly Row Model;
         readonly PoserUi ui;
         readonly Label values;
-        readonly Slider[] sliders = new Slider[3];
+        readonly FancySlider[] sliders = new FancySlider[3];
         bool lit;
 
-        public bool Lit { get { return lit; } set { if (lit != value) { lit = value; BackColor = lit ? PoserUi.Lit : Panel2; } } }
+        public bool Lit { get { return lit; } set { if (lit != value) { lit = value; Tint = lit ? Color.FromArgb(215, PoserUi.Lit) : Color.FromArgb(160, Panel2); } } }
 
         public JointRow(Row model, PoserUi ui) {
             Model = model; this.ui = ui;
-            Dock = DockStyle.Top; Height = 60; BackColor = Panel2; Margin = new Padding(0, 0, 0, 3); Padding = new Padding(6, 2, 6, 2);
-            var name = new Label { Text = model.Name, AutoSize = true, Location = new Point(6, 4), ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold) };
-            values = new Label { AutoSize = true, Location = new Point(6, 4), ForeColor = Dim };
+            Dock = DockStyle.Top; Height = 64; Tint = Color.FromArgb(160, Panel2); Margin = new Padding(0, 0, 0, 3); Padding = new Padding(6, 2, 6, 2);
+            var name = new SkinLabel { Text = model.Name, AutoSize = true, Location = new Point(6, 4), ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold) };
+            values = new SkinLabel { AutoSize = true, Location = new Point(6, 4), ForeColor = Dim };
             var reset = ui.Btn("RESET", (s, e) => ui.RowReset(Model), 56);
             var remove = ui.Btn("✕", (s, e) => ui.RowRemove(Model), 26);
             reset.Height = remove.Height = 22;
             Controls.Add(name); Controls.Add(values); Controls.Add(reset); Controls.Add(remove);
             for (int i = 0; i < 3; i++) {
-                var s = new Slider { Minimum = (int)(PoseModel.MIN_DEG * SLIDER_STEPS_PER_DEG), Maximum = (int)(PoseModel.MAX_DEG * SLIDER_STEPS_PER_DEG), TickStyle = TickStyle.None, SmallChange = 5, LargeChange = 50, AutoSize = false, Height = 26, BackColor = Panel2 };
+                var s = new FancySlider { Minimum = (int)(PoseModel.MIN_DEG * SLIDER_STEPS_PER_DEG), Maximum = (int)(PoseModel.MAX_DEG * SLIDER_STEPS_PER_DEG), SmallChange = 5, LargeChange = 50, Height = 30, Signed = true };
                 int axis = i;
                 s.Pressed += () => ui.RowPressed(Model);
                 s.Released += () => ui.RowReleased(Model);
@@ -378,18 +383,6 @@ class PoserUi : Form {
 
         void ShowValues() {
             values.Text = Model.Known ? string.Format("X {0,7:0.0}   Y {1,7:0.0}   Z {2,7:0.0}", Model.X, Model.Y, Model.Z) : "reading from the game...";
-        }
-    }
-
-    // A TrackBar that says when the mouse takes hold of it and lets go (the stock one raises neither).
-    class Slider : TrackBar {
-        const int WM_LBUTTONDOWN = 0x201, WM_LBUTTONUP = 0x202, WM_CAPTURECHANGED = 0x215;
-        public event Action Pressed, Released;
-        bool down;
-        protected override void WndProc(ref Message m) {
-            if (m.Msg == WM_LBUTTONDOWN && !down) { down = true; if (Pressed != null) Pressed(); }
-            base.WndProc(ref m);
-            if ((m.Msg == WM_LBUTTONUP || m.Msg == WM_CAPTURECHANGED) && down) { down = false; if (Released != null) Released(); }
         }
     }
 }

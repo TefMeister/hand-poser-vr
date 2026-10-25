@@ -58,6 +58,9 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   has a **Let go of everything** button.
 - A freshly added joint is only *read* until the game has reported its angle; then it is held at that angle, so adding
   a finger never makes it jump.
+- The sliders are drawn by the app itself (`app\Skin.cs`, 2026-10-25). The stock Windows slider paints itself white for a
+  moment before its dark colours, and Window View photographs the window many times a second, so that moment showed as a
+  random white flicker. The window's background is the app's own icon, pixelated and faint.
 
 ## Tested
 
