@@ -60,8 +60,9 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   a finger never makes it jump.
 - The sliders are drawn by the app itself (`app\Skin.cs`, 2026-10-25). The stock Windows slider paints itself white for a
   moment before its dark colours, and Window View photographs the window many times a second, so that moment showed as a
-  random white flicker. The window's background is the app's own icon, finely pixelated, with the scan lines and the
-  slowly rolling light of the Lanes terminal theme, dim and in colour.
+  random white flicker. The window's background is the app's own icon, finely pixelated and still
+  (the scan lines and rolling light came off on 2026-10-25, to spare the headset: a still window costs Window View
+  nothing while nobody touches it).
 - Finger groups (2026-10-25, Tefa: *"one slider bends a whole finger and all its joints follow"*): joints whose names
   differ only in a trailing number (`L_IndexF1..3`, `l_hand_index_0..2`) get a **bend all** bar above the joints. Drag it
   and every joint of that finger turns by the same amount on the chosen axis (**axis X / Y / Z**, remembered per finger),
