@@ -21,6 +21,12 @@ class PoserUi : Form {
     readonly GameLink link = new GameLink();
     readonly PoseModel model = new PoseModel(Program.AppData);
     readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer(), sendTimer = new System.Windows.Forms.Timer();
+    // 2026-10-25: the controller buttons step the ticked sliders (Nudge.cs)
+    readonly System.Windows.Forms.Timer nudgeTimer = new System.Windows.Forms.Timer();
+    readonly Nudge nudge = new Nudge();
+    readonly HashSet<string> ticked = new HashSet<string>();   // "joint:X" for a joint's axis, "group:<name>" for a finger bar
+    bool nudgeSaving;
+    Label nudgeNote;
     readonly bool demo;
     int demoStep;
     DateTime lastFind = DateTime.MinValue, lastStateWrite = DateTime.MinValue;
@@ -58,8 +64,10 @@ class PoserUi : Form {
         if (GameLink.LooksLikeGame(folder)) UseFolder(folder, gameArg == null);
 
         poll.Interval = POLL_MS; poll.Tick += (s, e) => Poll(); poll.Start();
+        nudgeTimer.Interval = 15; nudgeTimer.Tick += (s, e) => NudgeTick(); nudgeTimer.Start();
         sendTimer.Interval = COMMAND_DEBOUNCE_MS; sendTimer.Tick += (s, e) => { sendTimer.Stop(); Send(); };
         UpdateStatus();
+        ShowNudge();
     }
 
     protected override void OnPaintBackground(PaintEventArgs e) { Backdrop.PaintUnder(this, e.Graphics, e.ClipRectangle); }
@@ -79,7 +87,7 @@ class PoserUi : Form {
     }
 
     void BuildTop() {
-        var top = new SkinPanel { Dock = DockStyle.Top, Height = 214, Tint = Color.FromArgb(120, Back) };
+        var top = new SkinPanel { Dock = DockStyle.Top, Height = 238, Tint = Color.FromArgb(120, Back) };
         Controls.Add(top);
 
         status = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
@@ -108,7 +116,9 @@ class PoserUi : Form {
         var listHolder = new Panel { Dock = DockStyle.Top, Height = 88, Padding = new Padding(8, 0, 8, 4), BackColor = Color.Transparent };
         listHolder.Controls.Add(allJoints);
 
+        nudgeNote = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
         // docked controls stack bottom-up in the order added, so add in reverse
+        top.Controls.Add(nudgeNote);
         top.Controls.Add(listHolder);
         top.Controls.Add(filterRow);
         top.Controls.Add(quick);
@@ -135,6 +145,44 @@ class PoserUi : Form {
         two.Controls.Add(Btn("DELETE", (s, e) => DeleteBuild()));
         bottom.Controls.Add(two);
         bottom.Controls.Add(one);
+    }
+
+    // ---- the controller nudge (Nudge.cs) -----------------------------------------------------------------------------------
+    internal bool IsTicked(string key) { return ticked.Contains(key); }
+    internal void SetTicked(string key, bool on) { if (on) ticked.Add(key); else ticked.Remove(key); ShowNudge(); }
+    void ShowNudge() {
+        if (nudgeNote == null) return;
+        nudgeNote.Text = ticked.Count == 0 ? "tick sliders to step them with the controller buttons: X -1, Y -5, A +1, B +5, a held grip repeats"
+            : !nudge.Linked ? ticked.Count + " ticked: start Window View and click the left stick in to step them with the buttons"
+            : ticked.Count + " ticked: X -1, Y -5, A +1, B +5 (left grip repeats X / Y, right grip A / B), in Window View's controller mode";
+        nudgeNote.ForeColor = ticked.Count > 0 && nudge.Linked ? Good : Dim;
+    }
+    void NudgeTick() {
+        bool started;
+        double step = nudge.Poll(ticked.Count > 0, out started);
+        if (step == 0) {
+            if (nudgeSaving && !started) { nudgeSaving = false; try { model.Autosave(); } catch (IOException) { } }
+            return;
+        }
+        if (started) model.Mark();   // one undo step per press (its repeats included)
+        nudgeSaving = true;
+        // every slider to step, once each, whether ticked on its own or through its finger's bar
+        var targets = new HashSet<string>();
+        foreach (var r in model.Rows) foreach (var a in new[] { "X", "Y", "Z" }) if (ticked.Contains(r.Name + ":" + a)) targets.Add(r.Name + ":" + a);
+        foreach (var g in model.Groups()) {
+            if (!ticked.Contains("group:" + g.Key)) continue;
+            string axis = GroupAxis(g.Key);
+            foreach (var r in g.Value) targets.Add(r.Name + ":" + axis);
+        }
+        foreach (var r in model.Rows) {
+            if (!r.Known) continue;
+            if (targets.Contains(r.Name + ":X")) r.X = PoseModel.Clamp(r.X + step);
+            if (targets.Contains(r.Name + ":Y")) r.Y = PoseModel.Clamp(r.Y + step);
+            if (targets.Contains(r.Name + ":Z")) r.Z = PoseModel.Clamp(r.Z + step);
+        }
+        foreach (var row in rows) row.PullFromModel();
+        RequestSend();
+        UpdateStatus();
     }
 
     // ---- the game folder and the script ---------------------------------------------------------------------------------
@@ -319,6 +367,7 @@ class PoserUi : Form {
         readonly FancySlider bend;
         readonly Button axis;
         readonly Label value;
+        readonly CheckBox tick;
         double[] bases;
 
         public GroupRow(string group, List<Row> members, PoserUi ui) {
@@ -332,7 +381,10 @@ class PoserUi : Form {
             bend.Pressed += () => { ui.GroupPressed(); bases = members.Select(r => Axis(r)).ToArray(); };
             bend.Scroll += (o, e) => Apply();
             bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
-            Controls.Add(name); Controls.Add(axis); Controls.Add(bend); Controls.Add(value);
+            tick = new SkinCheckBox { Width = 18, Height = 18, Checked = ui.IsTicked("group:" + group), Location = new Point(6, 12) };
+            tick.CheckedChanged += (o, e) => ui.SetTicked("group:" + group, tick.Checked);
+            name.Location = new Point(28, 11);
+            Controls.Add(tick); Controls.Add(name); Controls.Add(axis); Controls.Add(bend); Controls.Add(value);
             Layout += (o, e) => {
                 int w = ClientSize.Width;
                 axis.Location = new Point(w - axis.Width - 6, 7);
@@ -398,6 +450,7 @@ class PoserUi : Form {
         readonly PoserUi ui;
         readonly Label values;
         readonly FancySlider[] sliders = new FancySlider[3];
+        readonly CheckBox[] ticks = new CheckBox[3];   // 2026-10-25: ticked = the controller buttons step this slider (Nudge.cs)
         bool lit;
 
         public bool Lit { get { return lit; } set { if (lit != value) { lit = value; Tint = lit ? Color.FromArgb(215, PoserUi.Lit) : Color.FromArgb(160, Panel2); } } }
@@ -421,6 +474,11 @@ class PoserUi : Form {
                 s.KeyUp += (o, e) => ui.RowReleased(Model);
                 sliders[axis] = s;
                 Controls.Add(s);
+                string key = model.Name + ":" + "XYZ"[axis];
+                var t = new SkinCheckBox { Width = 18, Height = 18, Checked = ui.IsTicked(key) };
+                t.CheckedChanged += (o, e) => ui.SetTicked(key, t.Checked);
+                ticks[axis] = t;
+                Controls.Add(t);
             }
             Layout += (o, e) => {
                 int w = ClientSize.Width;
@@ -428,7 +486,10 @@ class PoserUi : Form {
                 reset.Location = new Point(remove.Left - reset.Width - 4, 4);
                 values.Location = new Point(name.Right + 10, 4);
                 int sw = (w - 12) / 3;
-                for (int i = 0; i < 3; i++) { sliders[i].Location = new Point(6 + i * sw, 30); sliders[i].Width = sw - 4; }
+                for (int i = 0; i < 3; i++) {
+                    ticks[i].Location = new Point(6 + i * sw, 36);
+                    sliders[i].Location = new Point(6 + i * sw + 20, 30); sliders[i].Width = sw - 24;
+                }
             };
             PullFromModel();
         }
