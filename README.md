@@ -72,6 +72,11 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
 - **From the hand** (2026-10-25, Tefa: *"can the other sliders that are affected also change their values in real time"*):
   a joint's own angles never change when a joint above it turns, so each row also shows the joint as turned from the hand,
   reported by the game several times a second while anything is held, which does change live.
+- **One pose per gun** (2026-10-25, Tefa: "how do i save hand poses for guns individually?", then "yes please make it
+  automatic!"): with **EACH GUN KEEPS ITS OWN POSE** ticked (on by default), the game script reports the gun in the right
+  hand and every change is also saved as that gun's pose (`%APPDATA%\HandPoserVR\<game>\guns\<gun>.json`). Drawing
+  another gun brings its own pose back; a gun never posed starts from the pose in hand. The status line says whose pose is
+  shown. Named builds still work as before. Village reads the gun from the VR mode's `re8vr.weapon`.
 - **Plain names** (2026-10-25, Tefa: *"R_IndexF1 is something that i don't know what it is until i try it"*): every row and
   finger bar says what the joint is ("Right index finger: knuckle (base)", "Left thumb: tip joint", "Left wrist (turns the
   whole hand)"), with the game's own name after it; the joint list shows them too, and its filter finds "index", "thumb" or

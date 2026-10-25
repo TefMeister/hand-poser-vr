@@ -87,7 +87,7 @@ class PoserUi : Form {
     }
 
     void BuildTop() {
-        var top = new SkinPanel { Dock = DockStyle.Top, Height = 238, Tint = Color.FromArgb(120, Back) };
+        var top = new SkinPanel { Dock = DockStyle.Top, Height = 266, Tint = Color.FromArgb(120, Back) };
         Controls.Add(top);
 
         status = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
@@ -97,6 +97,16 @@ class PoserUi : Form {
         gameRow.Controls.Add(scriptButton);
         scriptNote = new SkinLabel { AutoSize = true, ForeColor = Dim, Padding = new Padding(4, 6, 0, 0) };
         gameRow.Controls.Add(scriptNote);
+        // 2026-10-25: one pose per gun, swapped by itself when another gun is drawn
+        var gunRow = Row(28);
+        perGun = settings.Get("per_gun", "1") == "1";
+        perGunBox = new SkinCheckBox { Text = "EACH GUN KEEPS ITS OWN POSE (swapped when you draw another gun)", AutoSize = true, Checked = perGun, ForeColor = Ink, Padding = new Padding(4, 4, 0, 0) };
+        perGunBox.CheckedChanged += (s, e) => {
+            perGun = perGunBox.Checked; settings.Set("per_gun", perGun ? "1" : "0");
+            if (!perGun) { model.GunPoseFile = null; poseGun = null; } else GunCheck();
+            UpdateStatus();
+        };
+        gunRow.Controls.Add(perGunBox);
 
         var quick = Row(32);
         quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "l_"), "left finger")));
@@ -125,6 +135,7 @@ class PoserUi : Form {
         top.Controls.Add(listHolder);
         top.Controls.Add(filterRow);
         top.Controls.Add(quick);
+        top.Controls.Add(gunRow);
         top.Controls.Add(gameRow);
         top.Controls.Add(status);
     }
@@ -230,11 +241,32 @@ class PoserUi : Form {
                 try { skeletonChanged = model.ReadState(text); } catch (FormatException) { }   // half-written: next time
                 if (skeletonChanged) OnSkeleton();
                 foreach (var r in rows) r.PullFromModel();
+                GunCheck();
             }
         }
         UpdateStatus();
         if (demo) Demo();
     }
+
+    // ---- one pose per gun -------------------------------------------------------------------------------------------------
+    bool perGun;
+    CheckBox perGunBox;
+    string poseGun;   // the gun whose pose is in the window (null = not decided yet)
+    void GunCheck() {
+        if (!perGun || !autosaveLoaded || !model.Connected || model.Game == "") return;
+        string g = model.Gun ?? "";
+        if (poseGun == g) { model.GunPoseFile = model.GunFile(g); return; }
+        string file = model.GunFile(g);
+        if (File.Exists(file)) {   // this gun has its own pose: it comes back (the previous gun's is already saved)
+            model.Mark();
+            if (model.LoadFile(file)) { poseGun = g; model.GunPoseFile = file; AfterModelChange(); return; }
+        }
+        poseGun = g;               // a gun never posed: it starts from the pose in hand, kept from now on as its own
+        model.GunPoseFile = file;
+        try { model.Autosave(); } catch (IOException) { }
+        UpdateStatus();
+    }
+    static string GunWords(string g) { return g == "" ? "no gun" : g.Replace("_Inventory", ""); }
 
     void OnSkeleton() {
         FillJointList();
@@ -257,7 +289,7 @@ class PoserUi : Form {
         if (link.Folder == null) { status.Text = "no game found yet: start an RE game with REFramework, or pick its folder"; status.ForeColor = Bad; }
         else if (!alive) { status.Text = Path.GetFileName(link.Folder) + " · waiting for the script in the game"; status.ForeColor = Dim; }
         else if (!model.Connected) { status.Text = model.Game + " · script running, no character yet (load into the game)"; status.ForeColor = Dim; }
-        else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
+        else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (perGun && poseGun != null ? " · pose of: " + GunWords(poseGun) : "") + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
         if (link.Folder == null) { scriptButton.Enabled = false; scriptNote.Text = ""; }
         else if (link.ScriptUpToDate()) { scriptButton.Enabled = false; scriptNote.Text = "script is in the game"; }
         else { scriptButton.Enabled = true; scriptNote.Text = link.ScriptInstalled() ? "an older script is in the game" : "script not in the game yet"; }

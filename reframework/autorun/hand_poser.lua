@@ -32,6 +32,34 @@ local want_read = {}       -- joint names the window wants the live angles of
 local go_name = nil        -- a named game object to pose instead of the player
 local target = nil         -- {go=, xform=, name=, joints={ {obj=, name=, parent=} ... }, by_name={} }
 local last_state_t = 0
+-- 2026-10-25 (Tefa: "how do i save hand poses for guns individually?", then "yes please make it automatic!"): the gun in the
+-- right hand is reported, so the app keeps one pose per gun and swaps them when another gun is drawn. Village: the VR mode's
+-- re8vr.weapon (its GameObject's name, e.g. "ri3042_Inventory"); RE2 / RE3: the same field on their VR table if there is one.
+-- "" = no gun (or a game where it cannot be read: then every pose is the "no gun" one)
+local gun_now, gun_checked_frame = "", -100
+local function current_gun()
+    local name = ""
+    for _, tname in ipairs({ "re8vr", "re2vr", "re3vr", "re2" }) do
+        local v = rawget(_G, tname)
+        if type(v) == "table" or type(v) == "userdata" then
+            -- the weapon's GameObject (get_GameObject, else its <owner> field), whose name is the gun; a GameObject answers
+            -- get_Name itself (the way Visceral RE8's grip script reads it)
+            local w = nil
+            pcall(function() w = v.weapon end)
+            if w then
+                local go = nil
+                pcall(function() go = w:call("get_GameObject") end)
+                if go == nil then pcall(function() go = w:get_field("<owner>k__BackingField") end) end
+                local n = nil
+                if go then pcall(function() n = go:call("get_Name") end) end
+                if n == nil then pcall(function() n = w:call("get_Name") end) end
+                if n then name = tostring(n) end
+            end
+            if name ~= "" then break end
+        end
+    end
+    return name
+end
 local last_relink_t = 0
 local frame = 0
 local last_error = ""
@@ -215,6 +243,7 @@ local function write_state()
         game = game,
         character = target and target.name or "",
         connected = target ~= nil,
+        gun = gun_now,
         seq_seen = last_seq,
         frame = frame,
         error = last_error,
@@ -261,6 +290,11 @@ re.on_frame(function()
     if not target_alive() then
         target = nil
         if now() - last_relink_t > RELINK_EVERY_SEC then relink() end
+    end
+    if frame - gun_checked_frame >= 15 then   -- a gun drawn or put away: told to the app straight away
+        gun_checked_frame = frame
+        local g = current_gun()
+        if g ~= gun_now then gun_now = g; write_state_now = true end
     end
     local every = (next(held) ~= nil or #want_read > 0) and STATE_LIVE_SEC or STATE_EVERY_SEC
     if write_state_now or now() - last_state_t > every then

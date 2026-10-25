@@ -142,6 +142,7 @@ class PoseModel {
         bool gameChanged = game != "" && game != Game;
         if (gameChanged) Game = game;
         Connected = Json.Bool(st.ContainsKey("connected") ? st["connected"] : null);
+        Gun = Json.Str(st.ContainsKey("gun") ? st["gun"] : null);
         LastError = Json.Str(st.ContainsKey("error") ? st["error"] : null);
         SeqSeen = (int)Json.Num(st.ContainsKey("seq_seen") ? st["seq_seen"] : null, -1);
         bool skeletonChanged = character != Character || gameChanged;
@@ -229,6 +230,18 @@ class PoseModel {
     public void Autosave() {
         Directory.CreateDirectory(GameDir);
         File.WriteAllText(AutosaveFile, Json.Write(ToJson()));
+        if (GunPoseFile != null) { Directory.CreateDirectory(GunsDir); File.WriteAllText(GunPoseFile, Json.Write(ToJson())); }
+    }
+
+    // ---- one pose per gun (2026-10-25, Tefa: "yes please make it automatic!"): guns\<gun>.json beside the autosave. While
+    // GunPoseFile is set, every autosave also goes to the gun in hand's file; the window swaps files when the gun changes
+    public string Gun = "";                 // the gun in the right hand, as the game script reports it ("" = none)
+    public string GunPoseFile;              // null = poses are not kept per gun
+    public string GunsDir { get { return Path.Combine(GameDir, "guns"); } }
+    public string GunFile(string gun) { return Path.Combine(GunsDir, SafeName(gun == "" ? "no gun" : gun) + ".json"); }
+    public bool LoadFile(string file) {
+        if (!File.Exists(file)) return false;
+        try { FromJson(File.ReadAllText(file)); return true; } catch (FormatException) { return false; }
     }
 
     public bool LoadAutosave() {
