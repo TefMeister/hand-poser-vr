@@ -70,6 +70,10 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
 - **From the hand** (2026-10-25, Tefa: *"can the other sliders that are affected also change their values in real time"*):
   a joint's own angles never change when a joint above it turns, so each row also shows the joint as turned from the hand,
   reported by the game several times a second while anything is held, which does change live.
+- **Plain names** (2026-10-25, Tefa: *"R_IndexF1 is something that i don't know what it is until i try it"*): every row and
+  finger bar says what the joint is ("Right index finger: knuckle (base)", "Left thumb: tip joint", "Left wrist (turns the
+  whole hand)"), with the game's own name after it; the joint list shows them too, and its filter finds "index", "thumb" or
+  "wrist". `app/JointNames.cs` knows Village's and RE2 / RE3's names and the body's.
 - **Controller buttons** (2026-10-25, Tefa: *"add tick boxes to each customizable hand part ... X is -1, Y is -5 and holding LG
   makes X and Y repeat ... A and B and RG to do the same respectively for +"*): every slider and finger bar has a tick box.
   In Window View's controller mode (left stick click), **X** takes every ticked slider down 1 degree, **Y** down 5, **A**

@@ -45,6 +45,9 @@ static class SelfTest {
         string cmd = model.Command();
         var c = Json.Obj(Json.Parse(cmd));
         Check("command asks to read 3, holds none", Json.Arr(c["want_read"]).Count == 3 && Json.Obj(c["hold"]).Count == 0 && Json.Num(c["seq"], 0) == 1);
+        Check("plain names: R_IndexF1 is the right index knuckle, l_hand_thumb_2 the left thumb tip, L_Hand the left wrist",
+              JointNames.Describe("R_IndexF1") == "right index finger: knuckle (base)" && JointNames.Describe("l_hand_thumb_2") == "left thumb: tip joint" &&
+              JointNames.Describe("L_Hand") == "left wrist (turns the whole hand)" && JointNames.Describe("L_PinkyF3") == "left pinky finger: tip joint");
         Check("finger groups: L_IndexF1 and l_hand_index_0 name their finger, a lone joint none",
               PoseModel.GroupOf("L_IndexF1") == "L_IndexF" && PoseModel.GroupOf("l_hand_index_0") == "l_hand_index" && PoseModel.GroupOf("L_Hand") == null);
         link.WriteCommand(cmd);

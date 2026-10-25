@@ -292,8 +292,9 @@ class PoserUi : Form {
     }
 
     void AddSelected() {
-        var name = allJoints.SelectedItem as string;
-        if (name == null) return;
+        var item = allJoints.SelectedItem as JointItem;
+        if (item == null) return;
+        string name = item.Name;
         Change(() => model.Add(name));
     }
 
@@ -301,7 +302,10 @@ class PoserUi : Form {
         string f = filter.Text.Trim().ToLowerInvariant();
         allJoints.BeginUpdate();
         allJoints.Items.Clear();
-        foreach (var n in model.Skeleton.Names) if (f == "" || n.ToLowerInvariant().Contains(f)) allJoints.Items.Add(n);
+        foreach (var n in model.Skeleton.Names) {   // the plain words count in the filter too ("index", "thumb", "wrist")
+            string d = (JointNames.Describe(n) ?? "").ToLowerInvariant();
+            if (f == "" || n.ToLowerInvariant().Contains(f) || d.Contains(f)) allJoints.Items.Add(new JointItem(n));
+        }
         allJoints.EndUpdate();
     }
 
@@ -373,7 +377,7 @@ class PoserUi : Form {
         public GroupRow(string group, List<Row> members, PoserUi ui) {
             this.group = group; this.members = members; this.ui = ui;
             Dock = DockStyle.Top; Height = 40; Tint = Color.FromArgb(185, 40, 64, 96); Padding = new Padding(6, 2, 6, 2);
-            var name = new SkinLabel { Text = group + "  (" + members.Count + " joints): bend all", AutoSize = true, ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold), Location = new Point(6, 11) };
+            var name = new SkinLabel { Text = JointNames.GroupTitle(group), AutoSize = true, ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold), Location = new Point(6, 11) };
             axis = ui.Btn("axis " + ui.GroupAxis(group), (s, e) => NextAxis(), 64);
             axis.Height = 26;
             value = new SkinLabel { AutoSize = true, ForeColor = Dim, Location = new Point(0, 11) };
@@ -457,9 +461,11 @@ class PoserUi : Form {
 
         public JointRow(Row model, PoserUi ui) {
             Model = model; this.ui = ui;
-            Dock = DockStyle.Top; Height = 64; Tint = Color.FromArgb(160, Panel2); Margin = new Padding(0, 0, 0, 3); Padding = new Padding(6, 2, 6, 2);
-            var name = new SkinLabel { Text = model.Name, AutoSize = true, Location = new Point(6, 4), ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold) };
-            values = new SkinLabel { AutoSize = true, Location = new Point(6, 4), ForeColor = Dim };
+            // 2026-10-25 (Tefa: "R_IndexF1 is something that i don't know what it is until i try it"): the plain words on top,
+            // the game's name after them, the numbers on a line of their own
+            Dock = DockStyle.Top; Height = 80; Tint = Color.FromArgb(160, Panel2); Margin = new Padding(0, 0, 0, 3); Padding = new Padding(6, 2, 6, 2);
+            var name = new SkinLabel { Text = JointNames.Title(model.Name), AutoSize = true, Location = new Point(6, 4), ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold) };
+            values = new SkinLabel { AutoSize = true, Location = new Point(6, 24), ForeColor = Dim };
             var reset = ui.Btn("RESET", (s, e) => ui.RowReset(Model), 56);
             var remove = ui.Btn("✕", (s, e) => ui.RowRemove(Model), 26);
             reset.Height = remove.Height = 22;
@@ -484,11 +490,11 @@ class PoserUi : Form {
                 int w = ClientSize.Width;
                 remove.Location = new Point(w - remove.Width - 6, 4);
                 reset.Location = new Point(remove.Left - reset.Width - 4, 4);
-                values.Location = new Point(name.Right + 10, 4);
+                values.Location = new Point(6, 24);
                 int sw = (w - 12) / 3;
                 for (int i = 0; i < 3; i++) {
-                    ticks[i].Location = new Point(6 + i * sw, 36);
-                    sliders[i].Location = new Point(6 + i * sw + 20, 30); sliders[i].Width = sw - 24;
+                    ticks[i].Location = new Point(6 + i * sw, 52);
+                    sliders[i].Location = new Point(6 + i * sw + 20, 46); sliders[i].Width = sw - 24;
                 }
             };
             PullFromModel();
