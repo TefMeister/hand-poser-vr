@@ -53,7 +53,14 @@ static class JointNames {
     // a row's title: the plain words first, the game's own name after
     public static string Title(string name) {
         string d = Describe(name);
-        return d == null ? name : Capital(d) + "   (" + name + ")";
+        string t = d == null ? name : Capital(d) + "   (" + name + ")";
+        // a held wrist (or anything above it) is set every frame, so the controller can no longer turn the hand (Tefa 2026-10-25)
+        if (LocksControllerTurn(name)) t += "   ! while held, the controller cannot turn this hand";
+        return t;
+    }
+    public static bool LocksControllerTurn(string name) {
+        string d = Describe(name) ?? "";
+        return d.Contains("wrist") || d.Contains("forearm") || d.Contains("upper arm") || d.Contains("collarbone");
     }
     // a finger bar's title: "Right index finger: bend all"
     public static string GroupTitle(string group) {

@@ -101,8 +101,11 @@ class PoserUi : Form {
         var quick = Row(32);
         quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "l_"), "left finger")));
         quick.Controls.Add(Btn("RIGHT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "r_"), "right finger")));
-        quick.Controls.Add(Btn("LEFT HAND", (s, e) => QuickAdd(n => n.StartsWith("l_arm_wrist") || n.ToLowerInvariant() == "l_hand", "left hand")));
-        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => QuickAdd(n => n.StartsWith("r_arm_wrist") || n.ToLowerInvariant() == "r_hand", "right hand")));
+        // 2026-10-25 (Tefa: "i cannot rotate my hands, they only follow motion controllers ... i did change both left and right
+        // hand values"): these add the WRIST, and a held wrist is turned the same way every frame, so the controller can no
+        // longer turn that hand. Named for what they add, and the row says so
+        quick.Controls.Add(Btn("LEFT WRIST", (s, e) => QuickAdd(n => n.StartsWith("l_arm_wrist") || n.ToLowerInvariant() == "l_hand", "left wrist")));
+        quick.Controls.Add(Btn("RIGHT WRIST", (s, e) => QuickAdd(n => n.StartsWith("r_arm_wrist") || n.ToLowerInvariant() == "r_hand", "right wrist")));
         quick.Controls.Add(Btn("CLEAR ALL", (s, e) => Change(() => model.Clear())));
 
         var filterRow = Row(30);

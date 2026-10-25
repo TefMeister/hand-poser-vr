@@ -36,7 +36,8 @@ The game needs [REFramework](https://github.com/praydog/REFramework) installed (
    Restart the game, or open REFramework's menu (Insert) and press **Reset scripts**. The top line turns green:
    *re3 · pl2000 · connected*.
 4. Load into the game so there is a character, then press **LEFT FINGERS** or **RIGHT FINGERS** (all the finger joints)
-   or **LEFT HAND** / **RIGHT HAND** (the wrist). Or type into **any joint**, pick one from the list and press **ADD**.
+   or **LEFT WRIST** / **RIGHT WRIST**. ⚠️ A held wrist is turned the same way every frame, so the controller can no
+   longer turn that hand (its row says so); remove the row (✕) to give the hand back to the controller. Or type into **any joint**, pick one from the list and press **ADD**.
 5. Drag the sliders. X, Y and Z are the joint's local turning angles in degrees, −180 to 180; arrow keys nudge by half a
    degree, Page Up/Down by five.
 6. Type a name next to **build name** and press **SAVE BUILD** to keep the pose; pick it under **saved builds** and press
