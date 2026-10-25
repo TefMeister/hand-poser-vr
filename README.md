@@ -70,6 +70,12 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
 - **From the hand** (2026-10-25, Tefa: *"can the other sliders that are affected also change their values in real time"*):
   a joint's own angles never change when a joint above it turns, so each row also shows the joint as turned from the hand,
   reported by the game several times a second while anything is held, which does change live.
+- **Controller buttons** (2026-10-25, Tefa: *"add tick boxes to each customizable hand part ... X is -1, Y is -5 and holding LG
+  makes X and Y repeat ... A and B and RG to do the same respectively for +"*): every slider and finger bar has a tick box.
+  In Window View's controller mode (left stick click), **X** takes every ticked slider down 1 degree, **Y** down 5, **A**
+  up 1, **B** up 5; a held **left grip** makes X and Y repeat at once and keep repeating, a held **right grip** the same
+  for A and B. While anything is ticked, Window View leaves those buttons and the grips to the Hand Poser. One UNDO takes a
+  whole press back. (`app/Nudge.cs` reads the buttons from Window View's shared block.)
 - The icons of the four helper apps (Hand Poser, Grab Zones, Window View, Hand Freeze) share one tile, a dark rounded
   square with a blue edge; `tools/family_icons.py` draws all four.
 
