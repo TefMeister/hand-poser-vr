@@ -63,7 +63,7 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   random white flicker. The window's background is the app's own icon, finely pixelated, with the scan lines and the
   slowly rolling light of the Lanes terminal theme, dim and in colour.
 - The icons of the four helper apps (Hand Poser, Grab Zones, Window View, Hand Freeze) share one tile, a dark rounded
-  square with a blue edge; `toolsamily_icons.py` draws all four.
+  square with a blue edge; `tools/family_icons.py` draws all four.
 
 ## Tested
 
