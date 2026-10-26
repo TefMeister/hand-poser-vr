@@ -143,6 +143,7 @@ class PoseModel {
         if (gameChanged) Game = game;
         Connected = Json.Bool(st.ContainsKey("connected") ? st["connected"] : null);
         Gun = Json.Str(st.ContainsKey("gun") ? st["gun"] : null);
+        Spot = Json.Str(st.ContainsKey("spot") ? st["spot"] : null);
         LastError = Json.Str(st.ContainsKey("error") ? st["error"] : null);
         SeqSeen = (int)Json.Num(st.ContainsKey("seq_seen") ? st["seq_seen"] : null, -1);
         bool skeletonChanged = character != Character || gameChanged;
@@ -237,6 +238,7 @@ class PoseModel {
     // GunPoseFile is set, every autosave also goes to the gun in hand's file; the window swaps files when the gun changes
     public string Gun = "";                 // the gun in the right hand, as the game script reports it ("" = none)
     public string GunPoseFile;              // null = poses are not kept per gun
+    public string Spot = "";                // 2026-10-26: where the left hand is ("land 3 eject", "start 3 eject", "slide", "magazine", "" = free)
     public string GunsDir { get { return Path.Combine(GameDir, "guns"); } }
     public string GunFile(string gun) { return Path.Combine(GunsDir, SafeName(gun == "" ? "no gun" : gun) + ".json"); }
     public bool LoadFile(string file) {

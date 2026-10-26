@@ -107,6 +107,11 @@ class PoserUi : Form {
             UpdateStatus();
         };
         gunRow.Controls.Add(perGunBox);
+        // 2026-10-26 (Tefa: "automatic saving for hand poses on different land spots and different start grab spots")
+        perSpot = settings.Get("per_spot", "1") == "1";
+        perSpotBox = new SkinCheckBox { Text = "AND EACH HAND SPOT (start sphere, landing spot, slide, magazine)", AutoSize = true, Checked = perSpot, ForeColor = Ink, Padding = new Padding(4, 4, 0, 0) };
+        perSpotBox.CheckedChanged += (s, e) => { perSpot = perSpotBox.Checked; settings.Set("per_spot", perSpot ? "1" : "0"); GunCheck(); };
+        gunRow.Controls.Add(perSpotBox);
 
         var quick = Row(32);
         quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "l_"), "left finger")));
@@ -251,10 +256,13 @@ class PoserUi : Form {
     // ---- one pose per gun -------------------------------------------------------------------------------------------------
     bool perGun;
     CheckBox perGunBox;
-    string poseGun;   // the gun whose pose is in the window (null = not decided yet)
+    string poseGun;   // the gun (and spot) whose pose is in the window (null = not decided yet)
+    bool perSpot;
+    CheckBox perSpotBox;
     void GunCheck() {
         if (!perGun || !autosaveLoaded || !model.Connected || model.Game == "") return;
         string g = model.Gun ?? "";
+        if (perSpot && !string.IsNullOrEmpty(model.Spot)) g += " @ " + model.Spot;   // a spot keeps its own pose too
         if (poseGun == g) { model.GunPoseFile = model.GunFile(g); return; }
         string file = model.GunFile(g);
         if (File.Exists(file)) {   // this gun has its own pose: it comes back (the previous gun's is already saved)

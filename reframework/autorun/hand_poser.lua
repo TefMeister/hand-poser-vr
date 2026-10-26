@@ -236,6 +236,36 @@ local function from_hand(name)
     return ok and out or nil
 end
 
+-- 2026-10-26 (Tefa: "automatic saving for hand poses on different land spots and different start grab spots"): where the
+-- left hand is, read from Visceral RE8's bridge (slot 153, src/pairs.cpp), so the app keeps one pose per gun AND spot.
+-- "" = nowhere in particular (or no Visceral bridge): the gun's own pose. Pair names come from visceral_re8\pairs.json.
+local SPOT_SLOT = 153
+local spot_now, spot_checked_frame, pair_names, pair_names_t = "", -100, {}, -100
+local function pair_name(n)
+    if now() - pair_names_t > 2.0 then
+        pair_names_t = now()
+        local ok, d = pcall(json.load_file, "visceral_re8/pairs.json")
+        if ok and type(d) == "table" and type(d.pairs) == "table" then
+            pair_names = {}
+            for _, p in ipairs(d.pairs) do if type(p) == "table" and p.n then pair_names[math.floor(p.n)] = tostring(p.name or "") end end
+        end
+    end
+    local nm = pair_names[n]
+    return (nm and nm ~= "" and nm ~= ("pair " .. n)) and (" " .. nm) or ""
+end
+local function current_spot()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
+    local ok, v = pcall(b.r, SPOT_SLOT)
+    if not ok or type(v) ~= "number" then return "" end
+    v = math.floor(v + 0.5)
+    if v >= 2000 then return "start " .. (v - 2000) .. pair_name(v - 2000) end
+    if v >= 1000 then return "land " .. (v - 1000) .. pair_name(v - 1000) end
+    if v == 3 then return "slide" end
+    if v == 4 then return "magazine" end
+    return ""
+end
+
 local function write_state()
     last_state_t = now()
     write_state_now = false
@@ -244,6 +274,7 @@ local function write_state()
         character = target and target.name or "",
         connected = target ~= nil,
         gun = gun_now,
+        spot = spot_now,
         seq_seen = last_seq,
         frame = frame,
         error = last_error,
@@ -295,6 +326,11 @@ re.on_frame(function()
         gun_checked_frame = frame
         local g = current_gun()
         if g ~= gun_now then gun_now = g; write_state_now = true end
+    end
+    if frame - spot_checked_frame >= 3 then   -- the hand lands in a fraction of a second: its spot is told quickly
+        spot_checked_frame = frame
+        local sp = current_spot()
+        if sp ~= spot_now then spot_now = sp; write_state_now = true end
     end
     local every = (next(held) ~= nil or #want_read > 0) and STATE_LIVE_SEC or STATE_EVERY_SEC
     if write_state_now or now() - last_state_t > every then
