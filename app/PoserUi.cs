@@ -87,7 +87,7 @@ class PoserUi : Form {
     }
 
     void BuildTop() {
-        var top = new SkinPanel { Dock = DockStyle.Top, Height = 266, Tint = Color.FromArgb(120, Back) };
+        var top = new SkinPanel { Dock = DockStyle.Top, Height = 276, Tint = Color.FromArgb(120, Back) };
         Controls.Add(top);
 
         status = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
@@ -134,9 +134,13 @@ class PoserUi : Form {
         var listHolder = new Panel { Dock = DockStyle.Top, Height = 88, Padding = new Padding(8, 0, 8, 4), BackColor = Color.Transparent };
         listHolder.Controls.Add(allJoints);
 
-        nudgeNote = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
+        // 2026-10-27 (Tefa: "add a clear all tick marks button"): beside the line about the ticked sliders
+        var nudgeRow = Row(34);
+        nudgeRow.Controls.Add(Btn("CLEAR ALL TICKS", (s, e) => ClearTicks()));
+        nudgeNote = new SkinLabel { AutoSize = true, Padding = new Padding(4, 6, 0, 0), ForeColor = Dim };
+        nudgeRow.Controls.Add(nudgeNote);
         // docked controls stack bottom-up in the order added, so add in reverse
-        top.Controls.Add(nudgeNote);
+        top.Controls.Add(nudgeRow);
         top.Controls.Add(listHolder);
         top.Controls.Add(filterRow);
         top.Controls.Add(quick);
@@ -169,6 +173,19 @@ class PoserUi : Form {
     // ---- the controller nudge (Nudge.cs) -----------------------------------------------------------------------------------
     internal bool IsTicked(string key) { return ticked.Contains(key); }
     internal void SetTicked(string key, bool on) { if (on) ticked.Add(key); else ticked.Remove(key); ShowNudge(); }
+    // every tick box carries its key in Tag: unticking them all through the boxes keeps the boxes and the set in step
+    void ClearTicks() {
+        var stack = new Stack<Control>();
+        stack.Push(this);
+        while (stack.Count > 0) {
+            var c = stack.Pop();
+            var cb = c as CheckBox;
+            if (cb != null && cb.Tag is string && cb.Checked) cb.Checked = false;
+            foreach (Control k in c.Controls) stack.Push(k);
+        }
+        ticked.Clear();
+        ShowNudge();
+    }
     void ShowNudge() {
         if (nudgeNote == null) return;
         nudgeNote.Text = ticked.Count == 0 ? "tick sliders to step them with the controller buttons: X -1, Y -5, A +1, B +5, a held grip repeats"
@@ -428,9 +445,9 @@ class PoserUi : Form {
             bend.Pressed += () => { ui.GroupPressed(); bases = members.Select(r => Axis(r)).ToArray(); };
             bend.Scroll += (o, e) => Apply();
             bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
-            tick = new SkinCheckBox { Width = 18, Height = 18, Checked = ui.IsTicked("group:" + group), Location = new Point(6, 12) };
+            tick = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked("group:" + group), Location = new Point(6, 6), Tag = "group:" + group };
             tick.CheckedChanged += (o, e) => ui.SetTicked("group:" + group, tick.Checked);
-            name.Location = new Point(28, 11);
+            name.Location = new Point(40, 11);
             Controls.Add(tick); Controls.Add(name); Controls.Add(axis); Controls.Add(bend); Controls.Add(value);
             Layout += (o, e) => {
                 int w = ClientSize.Width;
@@ -524,7 +541,7 @@ class PoserUi : Form {
                 sliders[axis] = s;
                 Controls.Add(s);
                 string key = model.Name + ":" + "XYZ"[axis];
-                var t = new SkinCheckBox { Width = 18, Height = 18, Checked = ui.IsTicked(key) };
+                var t = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked(key), Tag = key };
                 t.CheckedChanged += (o, e) => ui.SetTicked(key, t.Checked);
                 ticks[axis] = t;
                 Controls.Add(t);
@@ -536,8 +553,8 @@ class PoserUi : Form {
                 values.Location = new Point(6, 24);
                 int sw = (w - 12) / 3;
                 for (int i = 0; i < 3; i++) {
-                    ticks[i].Location = new Point(6 + i * sw, 52);
-                    sliders[i].Location = new Point(6 + i * sw + 20, 46); sliders[i].Width = sw - 24;
+                    ticks[i].Location = new Point(6 + i * sw, 47);
+                    sliders[i].Location = new Point(6 + i * sw + 32, 46); sliders[i].Width = sw - 36;
                 }
             };
             PullFromModel();

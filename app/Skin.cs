@@ -176,6 +176,22 @@ class SkinButton : Button {
 class SkinCheckBox : CheckBox {
     bool down, clicked;
     public SkinCheckBox() { BackColor = Color.Transparent; }
+    // 2026-10-27 (Tefa: "please make the tick boxes bigger"): a box with no text is drawn by us, filling the control (size it
+    // 28 x 28): a dark square with a bright edge, and a thick tick when on. Boxes with text keep Windows' own look.
+    protected override void OnPaint(PaintEventArgs e) {
+        if (!string.IsNullOrEmpty(Text)) { base.OnPaint(e); return; }
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        int side = Math.Min(ClientSize.Width, ClientSize.Height) - 2;
+        var r = new Rectangle(1, (ClientSize.Height - side) / 2, side, side);
+        using (var back = new SolidBrush(Checked ? Color.FromArgb(56, 150, 200) : Color.FromArgb(24, 26, 34))) g.FillRectangle(back, r);
+        using (var edge = new Pen(Enabled ? Color.FromArgb(150, 160, 190) : Color.FromArgb(80, 84, 100), 2f)) g.DrawRectangle(edge, r);
+        if (Checked) using (var tick = new Pen(Color.White, Math.Max(2f, side / 7f))) {
+            tick.StartCap = tick.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+            g.DrawLines(tick, new[] { new PointF(r.X + side * 0.22f, r.Y + side * 0.52f), new PointF(r.X + side * 0.42f, r.Y + side * 0.72f), new PointF(r.X + side * 0.78f, r.Y + side * 0.30f) });
+        }
+    }
+    protected override void OnCheckedChanged(EventArgs e) { base.OnCheckedChanged(e); Invalidate(); }
     protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); if (e.Button == MouseButtons.Left) down = true; }
     protected override void OnClick(EventArgs e) { clicked = true; base.OnClick(e); }
     protected override void OnMouseUp(MouseEventArgs e) {

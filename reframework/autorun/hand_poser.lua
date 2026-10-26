@@ -263,6 +263,9 @@ local function current_spot()
     if v >= 1000 then return "land " .. (v - 1000) .. pair_name(v - 1000) end
     if v == 3 then return "slide" end
     if v == 4 then return "magazine" end
+    if v == 5 then return "handle" end
+    if v == 6 then return "drum" end
+    if v == 7 then return "insert point" end
     return ""
 end
 
