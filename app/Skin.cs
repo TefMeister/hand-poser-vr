@@ -217,6 +217,7 @@ class FancySlider : Control {
     bool hot, dragging;
     public int SmallChange = 1, LargeChange = 10;
     public bool Signed;   // the fill runs from zero (the middle) to the thumb, and a notch marks zero
+    public string LeftText, RightText;   // 2026-10-27 (Tefa: "IN on the left side of the slider, OUT on the right side"): words under the ends
 
     public static readonly Color TrackBack = Color.FromArgb(18, 20, 27), TrackEdge = Color.FromArgb(78, 84, 106);
     public static readonly Color FillA = Color.FromArgb(56, 196, 232), FillB = Color.FromArgb(150, 108, 245);
@@ -307,6 +308,14 @@ class FancySlider : Control {
         Color ring = on ? (tx - Left0 < Width0 / 2f ? FillA : FillB) : TrackEdge;
         using (var pen = new Pen(ring, 3f)) g.DrawEllipse(pen, thumb.X + 1.5f, thumb.Y + 1.5f, thumb.Width - 3, thumb.Height - 3);
         using (var pip = new SolidBrush(on ? Color.FromArgb(60, 64, 82) : TrackEdge)) g.FillEllipse(pip, tx - 2, cy - 2, 4, 4);
+        if (LeftText != null || RightText != null) {
+            using (var f = new Font("Segoe UI Semibold", 7.5f))
+            using (var br = new SolidBrush(Color.FromArgb(on ? 190 : 90, 200, 206, 222))) {
+                float ty = cy + TRACK_H / 2f + 4;
+                if (LeftText != null) g.DrawString(LeftText, f, br, Left0 - 4, ty);
+                if (RightText != null) { var sz = g.MeasureString(RightText, f); g.DrawString(RightText, f, br, Left0 + Width0 + 4 - sz.Width, ty); }
+            }
+        }
     }
 
     protected override void OnMouseEnter(EventArgs e) { hot = true; Invalidate(); base.OnMouseEnter(e); }

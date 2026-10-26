@@ -69,6 +69,25 @@ static class JointNames {
         int colon = d.IndexOf(':');
         return Capital(colon > 0 ? d.Substring(0, colon) : d) + ": bend all   (" + group + ")";
     }
+    // 2026-10-27 (Tefa: "a header ... saying LEFT THUMB for instance, or RIGHT INDEX, then under it the joint names plain like
+    // KNUCKLE BASE, MIDDLE, TIP"): a finger box's header and a joint's short name inside it
+    public static string FingerHeader(string group) {
+        string d = Describe(group + (group.EndsWith("_") ? "0" : "1"));
+        if (d == null) return group.ToUpperInvariant();
+        int colon = d.IndexOf(':');
+        return (colon > 0 ? d.Substring(0, colon) : d).Replace(" finger", "").ToUpperInvariant();
+    }
+    public static string ShortPart(string name) {
+        string d = Describe(name);
+        if (d == null) return name;
+        int colon = d.IndexOf(':');
+        string p = colon > 0 ? d.Substring(colon + 1).Trim() : d;
+        if (p.StartsWith("knuckle")) return "KNUCKLE BASE";
+        if (p.StartsWith("base")) return "BASE";
+        if (p.StartsWith("middle")) return "MIDDLE";
+        if (p.StartsWith("tip")) return "TIP";
+        return p.ToUpperInvariant();
+    }
     static string Capital(string s) { return s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s.Substring(1); }
 }
 

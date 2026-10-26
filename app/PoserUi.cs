@@ -45,8 +45,8 @@ class PoserUi : Form {
         Text = "Hand Poser";
         BackColor = Back; ForeColor = Ink;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(600, 760);
-        MinimumSize = new Size(520, 560);
+        ClientSize = new Size(900, 1480);   // 2026-10-27: one hand's five fingers fit without scrolling
+        MinimumSize = new Size(600, 600);
         StartPosition = FormStartPosition.CenterScreen;
         string ico = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hand_poser.ico");
         try { Icon = new Icon(ico); } catch (Exception) { }
@@ -115,13 +115,15 @@ class PoserUi : Form {
 
         var quick = Row(32);
         quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "l_"), "left finger")));
+        quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "LEFT"), 34));   // 2026-10-27: jump to a finger
         quick.Controls.Add(Btn("RIGHT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "r_"), "right finger")));
+        quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "RIGHT"), 34));
         // 2026-10-25 (Tefa: "i cannot rotate my hands, they only follow motion controllers ... i did change both left and right
         // hand values"): these add the WRIST, and a held wrist is turned the same way every frame, so the controller can no
         // longer turn that hand. Named for what they add, and the row says so
         quick.Controls.Add(Btn("LEFT WRIST", (s, e) => QuickAdd(n => n.StartsWith("l_arm_wrist") || n.ToLowerInvariant() == "l_hand", "left wrist")));
         quick.Controls.Add(Btn("RIGHT WRIST", (s, e) => QuickAdd(n => n.StartsWith("r_arm_wrist") || n.ToLowerInvariant() == "r_hand", "right wrist")));
-        quick.Controls.Add(Btn("CLEAR ALL", (s, e) => Change(() => model.Clear())));
+        // (2026-10-27, Tefa: "please remove clear all from it")
 
         var filterRow = Row(30);
         filterRow.Controls.Add(new SkinLabel { Text = "any joint:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
@@ -400,19 +402,70 @@ class PoserUi : Form {
         rows.Clear();
         groupRows.Clear();
         rowsPanel.Controls.Clear();
-        for (int i = model.Rows.Count - 1; i >= 0; i--) {     // docked Top: last added ends up first, so add in reverse
-            var row = new JointRow(model.Rows[i], this);
-            rows.Add(row);
-            rowsPanel.Controls.Add(row);
+        foreach (var b in fingerBoxes.Values) b.Dispose();
+        fingerBoxes.Clear();
+        // 2026-10-27 (Tefa: "group this whole one part, example thumb, in like a separate box that is straight away clear that
+        // everything here affects the thumb"): a box per finger, its header, its BEND ALL bar and its joints; other joints after
+        var groups = model.Groups();
+        // thumb first, then index to pinky, left hand before right
+        groups = groups.OrderBy(g => FingerOrder(g.Key)).ToList();
+        var inGroup = new HashSet<Row>();
+        foreach (var g in groups) foreach (var r in g.Value) inGroup.Add(r);
+        var order = new List<Control>();
+        foreach (var g in groups) {
+            var box = new SkinPanel { Dock = DockStyle.Top, Tint = Color.FromArgb(150, 30, 44, 66), Padding = new Padding(6, 2, 6, 4), Margin = new Padding(0, 0, 0, 6) };
+            var head = new SkinLabel { Text = JointNames.FingerHeader(g.Key), Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Ink, Font = new Font("Segoe UI Semibold", 14f) };
+            var gap = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = Color.Transparent };
+            var gr = new GroupRow(g.Key, g.Value, this);
+            groupRows.Add(gr);
+            var mine = new List<JointRow>();
+            foreach (var r in g.Value) { var jr = new JointRow(r, this, GroupAxis(g.Key)); mine.Add(jr); rows.Add(jr); }
+            for (int i = mine.Count - 1; i >= 0; i--) box.Controls.Add(mine[i]);   // docked Top: add in reverse
+            box.Controls.Add(gr);
+            box.Controls.Add(head);
+            int h = box.Padding.Vertical + head.Height + gr.Height;
+            foreach (var jr in mine) h += jr.Height;
+            box.Height = h;
+            fingerBoxes[g.Key] = box;
+            order.Add(box);
+            order.Add(gap);
         }
-        rows.Reverse();
-        var groups = model.Groups();                           // the finger groups go above the joints
-        for (int i = groups.Count - 1; i >= 0; i--) {
-            var g = new GroupRow(groups[i].Key, groups[i].Value, this);
-            groupRows.Add(g);
-            rowsPanel.Controls.Add(g);
-        }
+        foreach (var r in model.Rows) if (!inGroup.Contains(r)) { var jr = new JointRow(r, this, null); rows.Add(jr); order.Add(jr); }
+        for (int i = order.Count - 1; i >= 0; i--) rowsPanel.Controls.Add(order[i]);
         rowsPanel.ResumeLayout();
+    }
+
+    static int FingerOrder(string group) {
+        string h = JointNames.FingerHeader(group);
+        int side = h.StartsWith("RIGHT") ? 10 : 0;
+        string[] f = { "THUMB", "INDEX", "MIDDLE", "RING", "PINKY" };
+        for (int i = 0; i < f.Length; i++) if (h.EndsWith(f[i])) return side + i;
+        return 100;
+    }
+
+    // ---- jump to a finger (the arrows beside LEFT / RIGHT FINGERS) ---------------------------------------------------------
+    readonly Dictionary<string, SkinPanel> fingerBoxes = new Dictionary<string, SkinPanel>();
+    void JumpMenu(Control at, string side) {
+        var menu = new ContextMenuStrip { Font = new Font("Segoe UI", 12f) };
+        foreach (var f in new[] { "THUMB", "INDEX", "MIDDLE", "RING", "PINKY" }) {
+            string want = side + " " + f;
+            menu.Items.Add(want, null, (s, e) => JumpTo(want, side));
+        }
+        menu.Show(at, new Point(0, at.Height));
+    }
+    void JumpTo(string header, string side) {
+        SkinPanel box = null;
+        foreach (var kv in fingerBoxes) if (JointNames.FingerHeader(kv.Key) == header) box = kv.Value;
+        if (box == null) {   // that hand's fingers are not in the window yet: add them first
+            string pre = side == "LEFT" ? "l_" : "r_";
+            QuickAdd(n => IsFinger(n, pre), side.ToLowerInvariant() + " finger");
+            foreach (var kv in fingerBoxes) if (JointNames.FingerHeader(kv.Key) == header) box = kv.Value;
+        }
+        if (box != null) rowsPanel.AutoScrollPosition = new Point(0, box.Top - rowsPanel.AutoScrollPosition.Y);
+    }
+    // the bend axis changed on a finger's bar: its joints' IN / OUT words move to that axis
+    internal void BendAxisChanged(string group, string axis) {
+        foreach (var r in rows) if (PoseModel.GroupOf(r.Model.Name) == group) r.SetBendAxis(axis);
     }
 
     // a finger group's bend slider: while dragged it adds its value to every joint of the finger on the chosen axis, from where
@@ -437,11 +490,11 @@ class PoserUi : Form {
         public GroupRow(string group, List<Row> members, PoserUi ui) {
             this.group = group; this.members = members; this.ui = ui;
             Dock = DockStyle.Top; Height = 40; Tint = Color.FromArgb(185, 40, 64, 96); Padding = new Padding(6, 2, 6, 2);
-            var name = new SkinLabel { Text = JointNames.GroupTitle(group), AutoSize = true, ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold), Location = new Point(6, 11) };
+            var name = new SkinLabel { Text = "BEND ALL", AutoSize = true, ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold), Location = new Point(6, 11) };
             axis = ui.Btn("axis " + ui.GroupAxis(group), (s, e) => NextAxis(), 64);
             axis.Height = 26;
             value = new SkinLabel { AutoSize = true, ForeColor = Dim, Location = new Point(0, 11) };
-            bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 30, Signed = true };
+            bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 34, Signed = true, LeftText = "IN", RightText = "OUT" };
             bend.Pressed += () => { ui.GroupPressed(); bases = members.Select(r => Axis(r)).ToArray(); };
             bend.Scroll += (o, e) => Apply();
             bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
@@ -465,6 +518,7 @@ class PoserUi : Form {
             string a = AxisName(), next = a == "X" ? "Y" : a == "Y" ? "Z" : "X";
             ui.SetGroupAxis(group, next);
             axis.Text = "axis " + next;
+            ui.BendAxisChanged(group, next);
         }
         void Apply() {
             if (bases == null) return;
@@ -519,19 +573,22 @@ class PoserUi : Form {
 
         public bool Lit { get { return lit; } set { if (lit != value) { lit = value; Tint = lit ? Color.FromArgb(215, PoserUi.Lit) : Color.FromArgb(160, Panel2); } } }
 
-        public JointRow(Row model, PoserUi ui) {
+        readonly bool compact;   // 2026-10-27: inside a finger box: one short line (KNUCKLE BASE / MIDDLE / TIP), the bend axis IN / OUT
+
+        public JointRow(Row model, PoserUi ui, string bendAxis) {
             Model = model; this.ui = ui;
+            compact = bendAxis != null;
             // 2026-10-25 (Tefa: "R_IndexF1 is something that i don't know what it is until i try it"): the plain words on top,
-            // the game's name after them, the numbers on a line of their own
-            Dock = DockStyle.Top; Height = 80; Tint = Color.FromArgb(160, Panel2); Margin = new Padding(0, 0, 0, 3); Padding = new Padding(6, 2, 6, 2);
-            var name = new SkinLabel { Text = JointNames.Title(model.Name), AutoSize = true, Location = new Point(6, 4), ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold) };
-            values = new SkinLabel { AutoSize = true, Location = new Point(6, 24), ForeColor = Dim };
+            // the game's name after them, the numbers on a line of their own. In a finger box: the short name, numbers under it
+            Dock = DockStyle.Top; Height = compact ? 42 : 80; Tint = Color.FromArgb(compact ? 110 : 160, Panel2); Margin = new Padding(0, 0, 0, 3); Padding = new Padding(6, 2, 6, 2);
+            var name = new SkinLabel { Text = compact ? JointNames.ShortPart(model.Name) : JointNames.Title(model.Name), AutoSize = true, Location = new Point(6, 4), ForeColor = Ink, Font = new Font(ui.Font.FontFamily, compact ? 10f : ui.Font.Size, FontStyle.Bold) };
+            values = new SkinLabel { AutoSize = true, Location = new Point(6, compact ? 22 : 24), ForeColor = Dim, Font = new Font(ui.Font.FontFamily, compact ? 7.5f : ui.Font.Size) };
             var reset = ui.Btn("RESET", (s, e) => ui.RowReset(Model), 56);
             var remove = ui.Btn("✕", (s, e) => ui.RowRemove(Model), 26);
             reset.Height = remove.Height = 22;
             Controls.Add(name); Controls.Add(values); Controls.Add(reset); Controls.Add(remove);
             for (int i = 0; i < 3; i++) {
-                var s = new FancySlider { Minimum = (int)(PoseModel.MIN_DEG * SLIDER_STEPS_PER_DEG), Maximum = (int)(PoseModel.MAX_DEG * SLIDER_STEPS_PER_DEG), SmallChange = 5, LargeChange = 50, Height = 30, Signed = true };
+                var s = new FancySlider { Minimum = (int)(PoseModel.MIN_DEG * SLIDER_STEPS_PER_DEG), Maximum = (int)(PoseModel.MAX_DEG * SLIDER_STEPS_PER_DEG), SmallChange = 5, LargeChange = 50, Height = compact ? 38 : 30, Signed = true };
                 int axis = i;
                 s.Pressed += () => ui.RowPressed(Model);
                 s.Released += () => ui.RowReleased(Model);
@@ -546,18 +603,39 @@ class PoserUi : Form {
                 ticks[axis] = t;
                 Controls.Add(t);
             }
+            SetBendAxis(bendAxis);
             Layout += (o, e) => {
                 int w = ClientSize.Width;
+                if (compact) {   // name | three tick + slider columns | RESET ✕
+                    remove.Location = new Point(w - remove.Width - 6, 10);
+                    reset.Location = new Point(remove.Left - reset.Width - 4, 10);
+                    int left = 150, sw = Math.Max(90, (reset.Left - 8 - left) / 3);
+                    for (int i = 0; i < 3; i++) {
+                        ticks[i].Location = new Point(left + i * sw, 7);
+                        sliders[i].Location = new Point(left + i * sw + 32, 2); sliders[i].Width = sw - 38;
+                    }
+                    return;
+                }
                 remove.Location = new Point(w - remove.Width - 6, 4);
                 reset.Location = new Point(remove.Left - reset.Width - 4, 4);
                 values.Location = new Point(6, 24);
-                int sw = (w - 12) / 3;
+                int sw2 = (w - 12) / 3;
                 for (int i = 0; i < 3; i++) {
-                    ticks[i].Location = new Point(6 + i * sw, 47);
-                    sliders[i].Location = new Point(6 + i * sw + 32, 46); sliders[i].Width = sw - 36;
+                    ticks[i].Location = new Point(6 + i * sw2, 47);
+                    sliders[i].Location = new Point(6 + i * sw2 + 32, 46); sliders[i].Width = sw2 - 36;
                 }
             };
             PullFromModel();
+        }
+
+        // the finger's bend axis says IN (left) / OUT (right); the other two their axis letter at each end
+        public void SetBendAxis(string axis) {
+            for (int i = 0; i < 3; i++) {
+                string a = "XYZ"[i].ToString();
+                if (axis != null && a == axis) { sliders[i].LeftText = "IN"; sliders[i].RightText = "OUT"; }
+                else if (axis != null) { sliders[i].LeftText = "-" + a; sliders[i].RightText = "+" + a; }
+                sliders[i].Invalidate();
+            }
         }
 
         void Push() {
@@ -584,7 +662,8 @@ class PoserUi : Form {
         void ShowValues() {
             string own = Model.Known ? string.Format("X {0,7:0.0}   Y {1,7:0.0}   Z {2,7:0.0}", Model.X, Model.Y, Model.Z) : "reading from the game...";
             // 2026-10-25: the joint as seen from the hand, live: it changes when a joint above it turns
-            if (Model.Known && Model.RelKnown) own += string.Format("      from the hand  {0:0} / {1:0} / {2:0}", Model.RelX, Model.RelY, Model.RelZ);
+            if (compact) own = Model.Known ? string.Format("X {0:0.0}  Y {1:0.0}  Z {2:0.0}", Model.X, Model.Y, Model.Z) : "reading...";
+            else if (Model.Known && Model.RelKnown) own += string.Format("      from the hand  {0:0} / {1:0} / {2:0}", Model.RelX, Model.RelY, Model.RelZ);
             values.Text = own;
         }
     }
