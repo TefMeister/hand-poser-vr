@@ -267,6 +267,7 @@ local function current_spot()
     if v == 6 then return "drum" end
     if v == 7 then return "insert point" end
     if v == 8 then return "slide from the left" end   -- 2026-10-28: a pistol's slide taken from the gun hand's left (Visceral RE8)
+    if v == 9 then return "rounds from the pouch" end   -- 2026-10-28: rounds held in the left hand (Visceral RE8)
     return ""
 end
 
