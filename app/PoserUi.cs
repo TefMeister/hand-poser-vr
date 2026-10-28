@@ -1,6 +1,6 @@
 // PoserUi.cs -- the Hand Poser window. Top: game and character, the game folder and script buttons, the quick-add
-// buttons (LEFT FINGERS, RIGHT FINGERS, LEFT HAND, RIGHT HAND), a filter box with the whole skeleton to add any one
-// joint. Middle: one row per held joint with X / Y / Z sliders in degrees, RESET and a remove cross; while a slider is
+// buttons (LEFT HAND, RIGHT HAND: the wrist and the five fingers), ANY JOINT ▼ opening a filter box with the whole skeleton
+// to add any one joint, and in Visceral RE8 the docked left wrist (DockBox.cs, once the Dock Poser window). Middle: one row per held joint with X / Y / Z sliders in degrees, RESET and a remove cross; while a slider is
 // dragged, the rows of the joints it carries along light up amber. Bottom: UNDO, REDO, the pose-build name with SAVE
 // BUILD, the saved builds with LOAD and DELETE. Every change goes to the game at once and into the autosave.
 using System;
@@ -114,18 +114,19 @@ class PoserUi : Form {
         gunRow.Controls.Add(perSpotBox);
 
         var quick = Row(32);
-        quick.Controls.Add(Btn("LEFT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "l_"), "left finger")));
+        // 2026-10-28 (Tefa: "change these to left hand and right hand, so it has both the wrist and fingers"): one button per hand
+        // adds its wrist and its five fingers; the arrow beside it jumps to a finger. A held wrist is turned the same way every
+        // frame, so the controller no longer turns that hand (2026-10-25); RESET or ✕ on the wrist row gives it back
+        quick.Controls.Add(Btn("LEFT HAND", (s, e) => QuickAdd(n => IsHand(n, "l"), "left hand")));
         quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "LEFT"), 34));   // 2026-10-27: jump to a finger
-        quick.Controls.Add(Btn("RIGHT FINGERS", (s, e) => QuickAdd(n => IsFinger(n, "r_"), "right finger")));
+        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => QuickAdd(n => IsHand(n, "r"), "right hand")));
         quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "RIGHT"), 34));
-        // 2026-10-25 (Tefa: "i cannot rotate my hands, they only follow motion controllers ... i did change both left and right
-        // hand values"): these add the WRIST, and a held wrist is turned the same way every frame, so the controller can no
-        // longer turn that hand. Named for what they add, and the row says so
-        quick.Controls.Add(Btn("LEFT WRIST", (s, e) => QuickAdd(n => n.StartsWith("l_arm_wrist") || n.ToLowerInvariant() == "l_hand", "left wrist")));
-        quick.Controls.Add(Btn("RIGHT WRIST", (s, e) => QuickAdd(n => n.StartsWith("r_arm_wrist") || n.ToLowerInvariant() == "r_hand", "right wrist")));
         // (2026-10-27, Tefa: "please remove clear all from it")
+        // 2026-10-28 (Tefa: "remove that part from the window ... hide it behind a dropdown button"): the whole skeleton list
+        jointsButton = Btn("ANY JOINT  ▼", (s, e) => ShowJointList(!jointsOpen));
+        quick.Controls.Add(jointsButton);
 
-        var filterRow = Row(30);
+        filterRow = Row(30);
         filterRow.Controls.Add(new SkinLabel { Text = "any joint:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         filter = new TextBox { Width = 200, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.FixedSingle };
         filter.TextChanged += (s, e) => FillJointList();
@@ -133,7 +134,7 @@ class PoserUi : Form {
         filterRow.Controls.Add(Btn("ADD", (s, e) => AddSelected()));
         allJoints = new ListBox { Dock = DockStyle.Top, Height = 84, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.None, IntegralHeight = false };
         allJoints.DoubleClick += (s, e) => AddSelected();
-        var listHolder = new Panel { Dock = DockStyle.Top, Height = 88, Padding = new Padding(8, 0, 8, 4), BackColor = Color.Transparent };
+        listHolder = new Panel { Dock = DockStyle.Top, Height = 88, Padding = new Padding(8, 0, 8, 4), BackColor = Color.Transparent };
         listHolder.Controls.Add(allJoints);
 
         // 2026-10-27 (Tefa: "add a clear all tick marks button"): beside the line about the ticked sliders
@@ -141,14 +142,44 @@ class PoserUi : Form {
         nudgeRow.Controls.Add(Btn("CLEAR ALL TICKS", (s, e) => ClearTicks()));
         nudgeNote = new SkinLabel { AutoSize = true, Padding = new Padding(4, 6, 0, 0), ForeColor = Dim };
         nudgeRow.Controls.Add(nudgeNote);
+        // 2026-10-28: the docked left wrist (Visceral RE8), where the joint list was; folds on its own header
+        dockBox = new DockBox(this, (t, h, w) => Btn(t, h, w), settings.Get("dock_open", "1") == "1") { Visible = false };
+        dockBox.HeightChanged += () => { settings.Set("dock_open", dockBox.Open ? "1" : "0"); SizeTop(); };
         // docked controls stack bottom-up in the order added, so add in reverse
         top.Controls.Add(nudgeRow);
+        top.Controls.Add(dockBox);
         top.Controls.Add(listHolder);
         top.Controls.Add(filterRow);
         top.Controls.Add(quick);
         top.Controls.Add(gunRow);
         top.Controls.Add(gameRow);
         top.Controls.Add(status);
+        topPanel = top;
+        ShowJointList(false);
+    }
+
+    SkinPanel topPanel;
+    FlowLayoutPanel filterRow;
+    Panel listHolder;
+    Button jointsButton;
+    DockBox dockBox;
+    bool jointsOpen, dockShown;   // kept here: a control's Visible reads false until the window itself is shown
+    void ShowJointList(bool on) {
+        jointsOpen = on;
+        filterRow.Visible = listHolder.Visible = on;
+        jointsButton.Text = on ? "ANY JOINT  ▲" : "ANY JOINT  ▼";
+        SizeTop();
+    }
+    // the top grows and shrinks with what is open in it
+    void SizeTop() {
+        if (topPanel == null) return;
+        int h = topPanel.Padding.Vertical + 8;
+        foreach (Control c in topPanel.Controls) {
+            if ((c == filterRow || c == listHolder) && !jointsOpen) continue;
+            if (c == dockBox && !dockShown) continue;
+            h += c.Height;
+        }
+        topPanel.Height = h;
     }
 
     void BuildBottom() {
@@ -202,6 +233,8 @@ class PoserUi : Form {
             if (nudgeSaving && !started) { nudgeSaving = false; try { model.Autosave(); } catch (IOException) { } }
             return;
         }
+        if (dockShown) dockBox.Step(step, ticked);   // the docked wrist's ticked sliders (DockBox.cs)
+        if (ticked.All(k => k.StartsWith("dock:"))) return;
         if (started) model.Mark();   // one undo step per press (its repeats included)
         nudgeSaving = true;
         // every slider to step, once each, whether ticked on its own or through its finger's bar
@@ -268,6 +301,9 @@ class PoserUi : Form {
                 GunCheck();
             }
         }
+        bool village = DockBox.HasVisceral(link.Folder);
+        if (dockShown != village) { dockShown = dockBox.Visible = village; SizeTop(); }
+        if (village) dockBox.Poll(link.Folder);
         UpdateStatus();
         if (demo) Demo();
     }
@@ -345,6 +381,11 @@ class PoserUi : Form {
         if (l.StartsWith(side + "hand_")) return true;
         foreach (var f in FingerWords) if (l.StartsWith(side + f)) return true;
         return false;
+    }
+
+    // a hand: its wrist (Village / RE7 L_Hand, RE2 / RE3 l_arm_wrist) and its fingers
+    static bool IsHand(string n, string side) {
+        return IsFinger(n, side + "_") || n.StartsWith(side + "_arm_wrist") || n.ToLowerInvariant() == side + "_hand";
     }
 
     void QuickAdd(Func<string, bool> match, string what) {

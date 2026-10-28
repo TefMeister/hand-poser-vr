@@ -6,7 +6,7 @@
 
 <img src="docs/app-window.png" width="460">
 
-A small desktop window plus one REFramework script. Press **LEFT FINGERS** and every finger joint of the left hand gets
+A small desktop window plus one REFramework script. Press **LEFT HAND** and the left wrist and every finger joint of the left hand get
 a row with three sliders, X, Y and Z in degrees, already set to where the game has that finger right now. Move a slider
 and the finger follows, live, and stays there while the game's own animation keeps running around it. Add any other
 joint from the list (type part of its name to find it), take rows away with the cross, **RESET** one to zero. While you
@@ -35,9 +35,12 @@ The game needs [REFramework](https://github.com/praydog/REFramework) installed (
 3. Press **PUT THE SCRIPT INTO THE GAME** once. It copies `hand_poser.lua` into the game's `reframework\autorun` folder.
    Restart the game, or open REFramework's menu (Insert) and press **Reset scripts**. The top line turns green:
    *re3 · pl2000 · connected*.
-4. Load into the game so there is a character, then press **LEFT FINGERS** or **RIGHT FINGERS** (all the finger joints)
-   or **LEFT WRIST** / **RIGHT WRIST**. ⚠️ A held wrist is turned the same way every frame, so the controller can no
-   longer turn that hand (its row says so); remove the row (✕) to give the hand back to the controller. Or type into **any joint**, pick one from the list and press **ADD**.
+4. Load into the game so there is a character, then press **LEFT HAND** or **RIGHT HAND** (the wrist and all the
+   finger joints; the arrow beside each jumps to a finger). ⚠️ A held wrist is turned the same way every frame, so the controller can no
+   longer turn that hand (its row says so); remove the row (✕) to give the hand back to the controller. Or open **ANY JOINT ▼**, type part of a name, pick one from the list and press **ADD**.
+5. With Visceral RE8 in Village, the **LEFT HAND, DOCKED** box follows where the left hand is docked on the gun (slide,
+   magazine, pouch rounds, handle, a pair's landing spot) and moves and turns the wrist there, for that gun and spot only.
+   It was the separate Dock Poser window until 2026-10-28.
 5. Drag the sliders. X, Y and Z are the joint's local turning angles in degrees, −180 to 180; arrow keys nudge by half a
    degree, Page Up/Down by five.
 6. Type a name next to **build name** and press **SAVE BUILD** to keep the pose; pick it under **saved builds** and press
@@ -99,7 +102,7 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   fingers and turns one. The fake game saw both commands, with the first angles taken from it (2026-10-16).
 - Not yet run in a real game. The joint names the quick-add buttons look for (`l_hand_index_0` ... `r_hand_thumb_2`,
   `l_arm_wrist`, `r_arm_wrist`) are the ones RE2's player skeleton uses; other RE games may differ, and then the list
-  under **any joint** is the way in.
+  under **ANY JOINT ▼** is the way in.
 
 ## Limits (for now)
 
