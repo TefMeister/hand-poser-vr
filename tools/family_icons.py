@@ -1,4 +1,4 @@
-r"""family_icons.py -- draws the icons of the four helper apps on one shared tile (Tefa 2026-10-25: "please make the app
+r"""family_icons.py -- draws the icons of the helper apps on one shared tile (Tefa 2026-10-25: "please make the app
 background unified on all 4 apps ... as they are sort of all a part of this helper program family"): a dark rounded square
 with a blue edge, and each app's own picture on it.
 
@@ -122,10 +122,34 @@ def window_view():
     return edge(im)
 
 
+def gun_poser():
+    # Tefa 2026-10-28: "a machine gun in the middle and arrows going around it"
+    im = tile(); d = ImageDraw.Draw(im)
+    ARROW, GUN, DARK = (90, 200, 120, 255), (214, 218, 226, 255), (150, 156, 170, 255)
+    c, r, w = 128, 98, 13
+    for a0, a1 in ((205, 335), (25, 155)):                               # two arrows, chasing each other clockwise
+        d.arc(R(c - r - w / 2, c - r - w / 2, c + r + w / 2, c + r + w / 2), a0, a1, fill=ARROW, width=int(w * K))
+        a = math.radians(a1)
+        ex, ey = c + r * math.cos(a), c + r * math.sin(a)
+        tx, ty, nx, ny = -math.sin(a), math.cos(a), math.cos(a), math.sin(a)
+        d.polygon(R(ex + tx * 22, ey + ty * 22, ex + nx * 17, ey + ny * 17, ex - nx * 17, ey - ny * 17), fill=ARROW)
+    d.polygon(R(52, 114, 86, 110, 86, 138, 56, 150), fill=GUN)           # the stock
+    d.rounded_rectangle(R(84, 106, 154, 136), radius=4 * K, fill=GUN)    # the body
+    d.rectangle(R(152, 111, 192, 128), fill=DARK)                         # the barrel shroud
+    d.rectangle(R(190, 115, 210, 122), fill=GUN)                          # the barrel
+    d.rectangle(R(198, 104, 203, 115), fill=GUN)                          # the front sight
+    d.rectangle(R(98, 94, 140, 100), fill=GUN)                            # the carry handle
+    d.rectangle(R(100, 94, 106, 108), fill=GUN); d.rectangle(R(132, 94, 138, 108), fill=GUN)
+    d.polygon(R(126, 134, 142, 134, 154, 170, 138, 176), fill=DARK)      # the magazine, curved forward
+    d.polygon(R(94, 134, 110, 134, 104, 164, 88, 162), fill=GUN)         # the grip
+    return edge(im)
+
+
 def main(out):
     os.makedirs(out, exist_ok=True)
-    made = {"hand_poser": hand_poser(), "grab_zones": grab_zones(), "window_view": window_view(), "hand_freeze": hand_freeze()}
-    sheet = Image.new("RGBA", (4 * 266, 256 + 74), (30, 30, 30, 255))
+    made = {"hand_poser": hand_poser(), "grab_zones": grab_zones(), "window_view": window_view(), "hand_freeze": hand_freeze(),
+            "gun_poser": gun_poser()}
+    sheet = Image.new("RGBA", (len(made) * 266, 256 + 74), (30, 30, 30, 255))
     for i, (name, im) in enumerate(made.items()):
         small = im.resize((256, 256), Image.LANCZOS)
         small.save(os.path.join(out, name + ".ico"), sizes=SIZES)
