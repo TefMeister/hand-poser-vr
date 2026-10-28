@@ -100,7 +100,7 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   file). All pass (2026-10-16).
 - `test\fake_game.py <folder>` pretends to be the script; `HandPoser.exe --game <folder>\FakeGame --demo` adds the left
   fingers and turns one. The fake game saw both commands, with the first angles taken from it (2026-10-16).
-- In use with Visceral RE8 since 2026-10-18; not yet run in another game. The joint names the quick-add buttons look for (`l_hand_index_0` ... `r_hand_thumb_2`,
+- In use with Visceral RE8; not yet run in another game. The joint names the quick-add buttons look for (`l_hand_index_0` ... `r_hand_thumb_2`,
   `l_arm_wrist`, `r_arm_wrist`) are the ones RE2's player skeleton uses; other RE games may differ, and then the list
   under **ANY JOINT ▼** is the way in.
 
