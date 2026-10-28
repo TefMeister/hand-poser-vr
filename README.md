@@ -1,8 +1,8 @@
 # Hand Poser — pose the player's hands in RE Engine games with sliders
 
-> ⚠️ **UNTESTED.** Built on 2026-10-16 and proven only against a stand-in game (a script pretending to be the in-game
-> half), never yet inside a real RE game. The in-game script may find no character, name the joints differently, or hold
-> nothing. Removing the script's file from the game's `reframework\autorun` folder undoes everything it does.
+> 🔧 **Still being worked on, while already in use.** Used with Visceral RE8 (Resident Evil Village VR) to pose the
+> hands for each gun and reload spot; other RE Engine games have not been tried yet. Removing the script's file from the
+> game's `reframework\autorun` folder undoes everything it does.
 
 <img src="docs/app-window.png" width="460">
 
@@ -100,7 +100,7 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   file). All pass (2026-10-16).
 - `test\fake_game.py <folder>` pretends to be the script; `HandPoser.exe --game <folder>\FakeGame --demo` adds the left
   fingers and turns one. The fake game saw both commands, with the first angles taken from it (2026-10-16).
-- Not yet run in a real game. The joint names the quick-add buttons look for (`l_hand_index_0` ... `r_hand_thumb_2`,
+- In use with Visceral RE8 since 2026-10-18; not yet run in another game. The joint names the quick-add buttons look for (`l_hand_index_0` ... `r_hand_thumb_2`,
   `l_arm_wrist`, `r_arm_wrist`) are the ones RE2's player skeleton uses; other RE games may differ, and then the list
   under **ANY JOINT ▼** is the way in.
 
