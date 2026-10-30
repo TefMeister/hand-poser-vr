@@ -37,8 +37,6 @@ class Skeleton {
         }
     }
 
-    public bool Has(string name) { return index.ContainsKey(name); }
-
     // Every joint that hangs below `name` (children, their children ...): the ones a turn of `name` carries along.
     public HashSet<string> Descendants(string name) {
         var result = new HashSet<string>();

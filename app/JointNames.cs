@@ -62,13 +62,6 @@ static class JointNames {
         string d = Describe(name) ?? "";
         return d.Contains("wrist") || d.Contains("forearm") || d.Contains("upper arm") || d.Contains("collarbone");
     }
-    // a finger bar's title: "Right index finger: bend all"
-    public static string GroupTitle(string group) {
-        string d = Describe(group + (group.EndsWith("_") ? "0" : "1"));
-        if (d == null) return group + ": bend all";
-        int colon = d.IndexOf(':');
-        return Capital(colon > 0 ? d.Substring(0, colon) : d) + ": bend all   (" + group + ")";
-    }
     // 2026-10-27 (Tefa: "a header ... saying LEFT THUMB for instance, or RIGHT INDEX, then under it the joint names plain like
     // KNUCKLE BASE, MIDDLE, TIP"): a finger box's header and a joint's short name inside it
     public static string FingerHeader(string group) {
