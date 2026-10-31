@@ -12,11 +12,18 @@ class Row {
     public string Name;
     public double X, Y, Z;
     public bool Known;
+    // 2026-11-01 (Tefa: after tuning the right hand "the gun is behaving very strangely in my hand"): a WRIST added by the
+    // LEFT / RIGHT HAND button was held at the angle read from the game the moment it was added, so the controller stopped
+    // turning that hand (the 2026-10-25 trap again). A wrist is now held only once its own sliders were moved (or it was
+    // saved with numbers); fingers are held as before.
+    public bool Moved;
+    public static bool IsWrist(string n) { string l = n.ToLowerInvariant(); return l == "l_hand" || l == "r_hand" || l.StartsWith("l_arm_wrist") || l.StartsWith("r_arm_wrist"); }
+    public bool Holds { get { return Known && (Moved || !IsWrist(Name)); } }
     // 2026-10-25: the joint as turned "from the hand" (the game reports it several times a second): it changes live when a
     // joint above it turns, which the joint's own angles never do. Shown only; never saved or sent.
     public double RelX, RelY, RelZ;
     public bool RelKnown;
-    public Row Copy() { return new Row { Name = Name, X = X, Y = Y, Z = Z, Known = Known }; }
+    public Row Copy() { return new Row { Name = Name, X = X, Y = Y, Z = Z, Known = Known, Moved = Moved }; }
 }
 
 class Skeleton {
@@ -103,7 +110,7 @@ class PoseModel {
     public void Set(string name, double x, double y, double z) {
         var r = Find(name);
         if (r == null) return;
-        r.X = Clamp(x); r.Y = Clamp(y); r.Z = Clamp(z); r.Known = true;
+        r.X = Clamp(x); r.Y = Clamp(y); r.Z = Clamp(z); r.Known = true; r.Moved = true;
     }
 
     // ---- undo / redo: one snapshot per finished change --------------------------------------------------------------
@@ -152,7 +159,7 @@ class PoseModel {
         var angles = Json.Obj(st.ContainsKey("angles") ? st["angles"] : null);
         if (angles != null) {
             foreach (var r in Rows) {
-                if (r.Known) continue;        // once held, the window's numbers are the truth
+                if (r.Holds) continue;        // once held, the window's numbers are the truth (an untouched wrist keeps reading)
                 object v;
                 var a = angles.TryGetValue(r.Name, out v) ? Json.Arr(v) : null;
                 if (a == null || a.Count < 3) continue;
@@ -198,7 +205,7 @@ class PoseModel {
         var read = new List<object>();
         foreach (var r in Rows) {
             read.Add(r.Name);
-            if (r.Known) hold[r.Name] = new List<object> { r.X, r.Y, r.Z };
+            if (r.Holds) hold[r.Name] = new List<object> { r.X, r.Y, r.Z };
         }
         var cmd = new Dictionary<string, object> {
             { "seq", (double)(++Seq) }, { "hold", hold }, { "want_read", read }, { "go_name", GameObjectName }
@@ -209,7 +216,7 @@ class PoseModel {
     // ---- saving: autosave and named builds -----------------------------------------------------------------------------
     Dictionary<string, object> ToJson() {
         var joints = new Dictionary<string, object>();
-        foreach (var r in Rows) joints[r.Name] = r.Known ? new List<object> { r.X, r.Y, r.Z } : null;
+        foreach (var r in Rows) joints[r.Name] = r.Holds ? new List<object> { r.X, r.Y, r.Z } : null;
         return new Dictionary<string, object> { { "game", Game }, { "character", Character }, { "joints", joints } };
     }
 
@@ -221,7 +228,7 @@ class PoseModel {
         foreach (var kv in joints) {
             var row = new Row { Name = kv.Key };
             var a = Json.Arr(kv.Value);
-            if (a != null && a.Count >= 3) { row.X = Json.Num(a[0], 0); row.Y = Json.Num(a[1], 0); row.Z = Json.Num(a[2], 0); row.Known = true; }
+            if (a != null && a.Count >= 3) { row.X = Json.Num(a[0], 0); row.Y = Json.Num(a[1], 0); row.Z = Json.Num(a[2], 0); row.Known = true; row.Moved = true; }
             Rows.Add(row);
         }
     }

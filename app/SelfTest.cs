@@ -73,6 +73,16 @@ static class SelfTest {
         Check("undo puts index_0 back to 10", model.Find("l_hand_index_0").X == 10 && model.CanRedo);
         model.Undo();
         Check("second undo removes the rows", model.Rows.Count == 0 && !model.CanUndo);
+        // 2026-11-01: an added wrist is not held until its sliders move (it froze the gun hand at the angle it had when added)
+        model.Add("l_arm_wrist");
+        model.ReadState(State(true, "pl2000", "{\"l_arm_wrist\":[5,6,7]}"));
+        var w = model.Find("l_arm_wrist");
+        c = Json.Obj(Json.Parse(model.Command()));
+        Check("an added wrist reads from the game but is not held", w.Known && !w.Holds && !Json.Obj(c["hold"]).ContainsKey("l_arm_wrist"));
+        model.Set("l_arm_wrist", 20, 6, 7);
+        c = Json.Obj(Json.Parse(model.Command()));
+        Check("a wrist moved by hand is held", Json.Obj(c["hold"]).ContainsKey("l_arm_wrist"));
+        model.Remove("l_arm_wrist");
         model.Redo(); model.Redo();
         Check("redo twice brings 45 back", model.Rows.Count == 3 && model.Find("l_hand_index_0").X == 45);
 

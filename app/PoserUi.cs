@@ -117,9 +117,11 @@ class PoserUi : Form {
         // 2026-10-28 (Tefa: "change these to left hand and right hand, so it has both the wrist and fingers"): one button per hand
         // adds its wrist and its five fingers; the arrow beside it jumps to a finger. A held wrist is turned the same way every
         // frame, so the controller no longer turns that hand (2026-10-25); RESET or ✕ on the wrist row gives it back
-        quick.Controls.Add(Btn("LEFT HAND", (s, e) => QuickAdd(n => IsHand(n, "l"), "left hand")));
+        // 2026-11-01 (Tefa: "right hand options get added to the bottom of the list, and i started twisting the sliders wondering
+        // why nothing was moving"): the list jumps to the new hand's thumb, so its rows are the ones in view
+        quick.Controls.Add(Btn("LEFT HAND", (s, e) => { QuickAdd(n => IsHand(n, "l"), "left hand"); JumpTo("LEFT THUMB", "LEFT"); }));
         quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "LEFT"), 34));   // 2026-10-27: jump to a finger
-        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => QuickAdd(n => IsHand(n, "r"), "right hand")));
+        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => { QuickAdd(n => IsHand(n, "r"), "right hand"); JumpTo("RIGHT THUMB", "RIGHT"); }));
         quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "RIGHT"), 34));
         // (2026-10-27, Tefa: "please remove clear all from it")
         // 2026-10-28 (Tefa: "remove that part from the window ... hide it behind a dropdown button"): the whole skeleton list
@@ -250,6 +252,7 @@ class PoserUi : Form {
             if (targets.Contains(r.Name + ":X")) r.X = PoseModel.Clamp(r.X + step);
             if (targets.Contains(r.Name + ":Y")) r.Y = PoseModel.Clamp(r.Y + step);
             if (targets.Contains(r.Name + ":Z")) r.Z = PoseModel.Clamp(r.Z + step);
+            if (targets.Contains(r.Name + ":X") || targets.Contains(r.Name + ":Y") || targets.Contains(r.Name + ":Z")) r.Moved = true;
         }
         foreach (var row in rows) row.PullFromModel();
         RequestSend();
@@ -569,7 +572,7 @@ class PoserUi : Form {
                 var r = members[i];
                 double v = PoseModel.Clamp(bases[i] + d);
                 if (a == "X") r.X = v; else if (a == "Y") r.Y = v; else r.Z = v;
-                r.Known = true;
+                r.Known = true; r.Moved = true;
             }
             ShowValue();
             ui.GroupMoved();
@@ -683,7 +686,7 @@ class PoserUi : Form {
             Model.X = sliders[0].Value / (double)SLIDER_STEPS_PER_DEG;
             Model.Y = sliders[1].Value / (double)SLIDER_STEPS_PER_DEG;
             Model.Z = sliders[2].Value / (double)SLIDER_STEPS_PER_DEG;
-            Model.Known = true;
+            Model.Known = true; Model.Moved = true;
         }
 
         public void PullFromModel() {
