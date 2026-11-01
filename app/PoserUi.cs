@@ -119,9 +119,13 @@ class PoserUi : Form {
         // frame, so the controller no longer turns that hand (2026-10-25); RESET or ✕ on the wrist row gives it back
         // 2026-11-01 (Tefa: "right hand options get added to the bottom of the list, and i started twisting the sliders wondering
         // why nothing was moving"): the list jumps to the new hand's thumb, so its rows are the ones in view
-        quick.Controls.Add(Btn("LEFT HAND", (s, e) => { QuickAdd(n => IsHand(n, "l"), "left hand"); JumpTo("LEFT THUMB", "LEFT"); }));
+        // 2026-11-02 (Tefa: "make the hand poser app only display left or the right hand sliders, based on what button is pressed
+        // LEFT HAND or RIGHT HAND, not both in one window"): the button picks the hand whose rows are SHOWN; the other hand's
+        // joints stay held and saved, only out of view (other joints, a spine say, always show)
+        shownSide = settings.Get("shown_hand", "");
+        quick.Controls.Add(Btn("LEFT HAND", (s, e) => { ShowSide("l"); QuickAdd(n => IsHand(n, "l"), "left hand"); RebuildRows(); JumpTo("LEFT THUMB", "LEFT"); }));
         quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "LEFT"), 34));   // 2026-10-27: jump to a finger
-        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => { QuickAdd(n => IsHand(n, "r"), "right hand"); JumpTo("RIGHT THUMB", "RIGHT"); }));
+        quick.Controls.Add(Btn("RIGHT HAND", (s, e) => { ShowSide("r"); QuickAdd(n => IsHand(n, "r"), "right hand"); RebuildRows(); JumpTo("RIGHT THUMB", "RIGHT"); }));
         quick.Controls.Add(Btn("▼", (s, e) => JumpMenu((Control)s, "RIGHT"), 34));
         // (2026-10-27, Tefa: "please remove clear all from it")
         // 2026-10-28 (Tefa: "remove that part from the window ... hide it behind a dropdown button"): the whole skeleton list
@@ -439,6 +443,22 @@ class PoserUi : Form {
     }
 
     // ---- rows ---------------------------------------------------------------------------------------------------------------
+    string shownSide = "";   // "l" / "r": only that hand's rows are shown; "" = both (before either button was pressed)
+    void ShowSide(string side) {
+        shownSide = side;
+        settings.Set("shown_hand", side);
+        status.Text = "showing the " + (side == "l" ? "LEFT" : "RIGHT") + " hand's sliders (the other hand keeps its pose)";
+        status.ForeColor = Ink;
+    }
+    static string SideOfName(string n) {
+        string l = n.ToLowerInvariant();
+        return l.StartsWith("l_") ? "l" : l.StartsWith("r_") ? "r" : "";
+    }
+    static string SideOfGroup(string group) {
+        string h = JointNames.FingerHeader(group);
+        return h.StartsWith("LEFT") ? "l" : h.StartsWith("RIGHT") ? "r" : "";
+    }
+    bool SideShown(string side) { return shownSide == "" || side == "" || side == shownSide; }
     readonly List<GroupRow> groupRows = new List<GroupRow>();
     void RebuildRows() {
         rowsPanel.SuspendLayout();
@@ -458,6 +478,7 @@ class PoserUi : Form {
         foreach (var g in groups) foreach (var r in g.Value) inGroup.Add(r);
         var order = new List<Control>();
         foreach (var g in groups) {
+            if (!SideShown(SideOfGroup(g.Key))) continue;   // 2026-11-02: the other hand, out of view
             var box = new SkinPanel { Dock = DockStyle.Top, Tint = Color.FromArgb(150, 30, 44, 66), Padding = new Padding(6, 2, 6, 4), Margin = new Padding(0, 0, 0, 6) };
             var head = new SkinLabel { Text = JointNames.FingerHeader(g.Key), Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Ink, Font = new Font("Segoe UI Semibold", 14f) };
             var gap = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = Color.Transparent };
@@ -475,7 +496,7 @@ class PoserUi : Form {
             order.Add(box);
             order.Add(gap);
         }
-        foreach (var r in model.Rows) if (!inGroup.Contains(r)) { var jr = new JointRow(r, this, null); rows.Add(jr); order.Add(jr); }
+        foreach (var r in model.Rows) if (!inGroup.Contains(r) && SideShown(SideOfName(r.Name))) { var jr = new JointRow(r, this, null); rows.Add(jr); order.Add(jr); }
         for (int i = order.Count - 1; i >= 0; i--) rowsPanel.Controls.Add(order[i]);
         rowsPanel.ResumeLayout();
     }
