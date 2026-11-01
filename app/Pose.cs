@@ -240,7 +240,34 @@ class PoseModel {
             Directory.CreateDirectory(GunsDir);
             File.WriteAllText(GunPoseFile, Json.Write(ToJson()));
             MirrorOne(GunPoseFile);
+            ShareLeft(GunPoseFile);
         }
+    }
+
+    // 2026-11-02 (Tefa: "the left hand holding the gun pose, when i'm not docked with the right hand an ammo, the pose should be the
+    // same as when i am docked with RG and ammo waiting to be inserted"): a spot that only adds the right hand ("<gun> @ drum +
+    // right hand on the cover") shares its LEFT hand with the spot without it ("<gun> @ drum"): saving either one copies the left
+    // hand's joints into the other(s); the right hand stays each file's own
+    void ShareLeft(string file) {
+        try {
+            string name = Path.GetFileNameWithoutExtension(file);
+            var mine = Json.Obj(Json.Obj(Json.Parse(File.ReadAllText(file)))["joints"]);
+            if (mine == null) return;
+            var targets = new List<string>();
+            int plus = name.IndexOf(" + ", StringComparison.Ordinal);
+            if (plus > 0) targets.Add(Path.Combine(GunsDir, name.Substring(0, plus) + ".json"));
+            else foreach (var f in Directory.GetFiles(GunsDir, name + " + *.json")) targets.Add(f);
+            foreach (var t in targets) {
+                var all = File.Exists(t) ? Json.Obj(Json.Parse(File.ReadAllText(t))) : null;
+                if (all == null) all = new Dictionary<string, object> { { "game", Game }, { "character", Character } };
+                var joints = all.ContainsKey("joints") ? Json.Obj(all["joints"]) : null;
+                if (joints == null) { joints = new Dictionary<string, object>(); all["joints"] = joints; }
+                foreach (var k in new List<string>(joints.Keys)) if (k.ToLowerInvariant().StartsWith("l_")) joints.Remove(k);
+                foreach (var kv in mine) if (kv.Key.ToLowerInvariant().StartsWith("l_")) joints[kv.Key] = kv.Value;
+                File.WriteAllText(t, Json.Write(all));
+                MirrorOne(t);
+            }
+        } catch (Exception) { }   // a file caught mid-write: the next save shares it
     }
 
     // 2026-11-01 (Tefa: "yes": the finger poses without the app open): every gun pose is also kept in the game's own
