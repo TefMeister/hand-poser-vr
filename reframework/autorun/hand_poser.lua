@@ -323,20 +323,40 @@ end
 
 -- ---- holding the pose -------------------------------------------------------------------------------------------------
 
+-- 2026-11-01 (Tefa: "hand opening and closing was not working for me after i tuned the left hand and left hand off the
+-- weapon seemed to not go back into a default pose, but stayed as the last tuned pose"): a hand's fingers are held only while
+-- that hand is on the gun: the left while it is docked anywhere on it (a spot, or the two-handed front grip: Visceral RE8's
+-- bridge slots 153 and 36), the right while a gun is in hand. A free hand is the game's again, and Visceral RE8's open / close
+-- with the grip button works on it. With no Visceral RE8 bridge (RE2 / RE3) everything is held, as before.
+local function hands_on_gun()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return true, true end
+    local ok1, sp = pcall(b.r, SPOT_SLOT)
+    local ok2, g = pcall(b.r, 36)
+    local left = (ok1 and type(sp) == "number" and sp > 0.5) or (ok2 and type(g) == "number" and g > 0.5)
+    return left, gun_now ~= ""
+end
+
 local function apply()
     -- 2026-10-25: how many joints this script holds, for other mods that pose the same joints (Visceral RE8's open hand
-    -- stands down while a finger is held here)
-    local n = 0
-    for _ in pairs(held) do n = n + 1 end
-    _G.hand_poser_held = (target ~= nil) and n or 0
-    if not target or next(held) == nil then return end
+    -- stands down while a finger is held here). 2026-11-01: the LEFT hand's joints actually held (that open hand is the left's)
+    local left_on, right_on = hands_on_gun()
+    local nl, n = 0, 0
+    if not target or next(held) == nil then _G.hand_poser_held = 0; _G.hand_poser_held_all = 0; return end
     for name, v in pairs(held) do
-        local j = target.by_name[name]
-        if j then
-            local ok = pcall(function() j:call("set_LocalEulerAngle", v) end)
-            if not ok then target = nil; return end
+        local side = name:sub(1, 2):lower()
+        if (side ~= "l_" or left_on) and (side ~= "r_" or right_on) then
+            local j = target.by_name[name]
+            if j then
+                local ok = pcall(function() j:call("set_LocalEulerAngle", v) end)
+                if not ok then target = nil; _G.hand_poser_held = 0; return end
+                n = n + 1
+                if side == "l_" then nl = nl + 1 end
+            end
         end
     end
+    _G.hand_poser_held = nl
+    _G.hand_poser_held_all = n
 end
 
 re.on_frame(function()
