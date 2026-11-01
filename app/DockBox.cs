@@ -31,6 +31,9 @@ class DockBox : SkinPanel {
     readonly Timer saveTimer = new Timer();
     string folder, loadedKey = "";
     int gun, spot;
+    // 2026-11-02 (Tefa: "the whole hand positioning still only works for the left hand"): "r" = the box poses the RIGHT hand's
+    // docked spot (zones_state.json rspot: 1 the Wolfsbane's cover, 2 the rifle's bolt; saved as spot 101 / 102); set by the window
+    public string Side = "l";
     bool open = true, syncing;
 
     public event Action HeightChanged;
@@ -88,7 +91,7 @@ class DockBox : SkinPanel {
     void ShowValue(Axis a) { a.Value.Text = string.Format("{0:+0.0;-0.0;0.0} {1}", a.Bar.Value / (double)STEPS, a.Unit); }
 
     // the spots the plugin docks the left hand on (visceral-re8-vr src/dockpose.h)
-    static bool Docked(int s) { return (s >= 3 && s <= 10) || (s >= 1000 && s < 2000); }
+    static bool Docked(int s) { return (s >= 3 && s <= 10) || s == 101 || s == 102 || (s >= 1000 && s < 2000); }
     static string SpotName(int s) {
         switch (s) {
         case 3: return "the slide / pump / bolt";
@@ -99,6 +102,8 @@ class DockBox : SkinPanel {
         case 8: return "the slide, from the left";
         case 9: return "rounds from the pouch";
         case 10: return "the hammer";   // 2026-11-02: the Wolfsbane, the left palm on it
+        case 101: return "the cover (right hand)";
+        case 102: return "the bolt (right hand)";
         default: return s >= 1000 && s < 2000 ? "pair " + (s - 1000) + "'s landing spot" : "nothing";
         }
     }
@@ -136,12 +141,13 @@ class DockBox : SkinPanel {
                 if (o != null) {
                     alive = true;
                     if (o.TryGetValue("gun", out v)) gun = (int)Json.Num(v, 0);
-                    if (o.TryGetValue("spot", out v)) spot = (int)Json.Num(v, 0);
+                    if (Side == "r") { if (o.TryGetValue("rspot", out v)) { int r = (int)Json.Num(v, 0); spot = r > 0 ? 100 + r : 0; } }
+                    else if (o.TryGetValue("spot", out v)) spot = (int)Json.Num(v, 0);
                 }
             }
         } catch (Exception) { return; }   // caught mid-write: the next poll gets it
         bool docked = alive && gun > 0 && Docked(spot);
-        where.Text = !alive ? "the game's zones script is not running" : docked ? "on " + SpotName(spot) : "not docked: dock it (LG) to pose its wrist";
+        where.Text = !alive ? "the game's zones script is not running" : docked ? "on " + SpotName(spot) : (Side == "r" ? "right hand not docked: dock it (RG) to pose its wrist" : "not docked: dock it (LG) to pose its wrist");
         where.ForeColor = docked ? Ink : Dim;
         foreach (var a in axes) if (a.Bar.Enabled != docked) a.Bar.Enabled = docked;
         string key = gun + ":" + spot;

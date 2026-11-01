@@ -310,7 +310,7 @@ class PoserUi : Form {
         }
         bool village = DockBox.HasVisceral(link.Folder);
         if (dockShown != village) { dockShown = dockBox.Visible = village; SizeTop(); }
-        if (village) dockBox.Poll(link.Folder);
+        if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); }
         UpdateStatus();
         if (demo) Demo();
     }
@@ -447,6 +447,7 @@ class PoserUi : Form {
     void ShowSide(string side) {
         shownSide = side;
         settings.Set("shown_hand", side);
+        if (dockBox != null) dockBox.Side = side;   // the wrist box poses the shown hand too
         status.Text = "showing the " + (side == "l" ? "LEFT" : "RIGHT") + " hand's sliders (the other hand keeps its pose)";
         status.ForeColor = Ink;
     }
