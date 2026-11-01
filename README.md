@@ -101,7 +101,7 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
 
 - `dist\HandPoser.exe --selftest <folder>`: 22 checks on the parts that need no game (skeleton reading, children,
   first angles from the game, holding, clamping, undo, redo, builds, autosave, the command file, a half-written state
-  file). All pass (2026-10-16).
+  file). All pass (2026-10-16; 27 checks on 2026-11-01).
 - `test\fake_game.py <folder>` pretends to be the script; `HandPoser.exe --game <folder>\FakeGame --demo` adds the left
   fingers and turns one. The fake game saw both commands, with the first angles taken from it (2026-10-16).
 - In use with Visceral RE8; not yet run in another game. The joint names the quick-add buttons look for (`l_hand_index_0` ... `r_hand_thumb_2`,
