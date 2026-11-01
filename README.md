@@ -80,6 +80,10 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
   hand and every change is also saved as that gun's pose (`%APPDATA%\HandPoserVR\<game>\guns\<gun>.json`). Drawing
   another gun brings its own pose back; a gun never posed starts from the pose in hand. The status line says whose pose is
   shown. Named builds still work as before. Village reads the gun from the VR mode's `re8vr.weapon`.
+- **Poses without the app open** (2026-11-01, Tefa: "yes"): every gun pose the app saves is also copied into the game's
+  `reframework\data\hand_poser\guns\`, and the in-game script loads the gun's (and spot's) pose itself whenever the gun or
+  the left hand's spot changes, the same choice the app makes. So the poses work in play with the app closed; the app is
+  only needed for tuning, and its own command, a moment later, still wins. The log says `[hand_poser] own pose loaded: <gun>`.
 - **Plain names** (2026-10-25, Tefa: *"R_IndexF1 is something that i don't know what it is until i try it"*): every row and
   finger bar says what the joint is ("Right index finger: knuckle (base)", "Left thumb: tip joint", "Left wrist (turns the
   whole hand)"), with the game's own name after it; the joint list shows them too, and its filter finds "index", "thumb" or

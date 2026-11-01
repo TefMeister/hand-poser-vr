@@ -271,6 +271,28 @@ local function current_spot()
     return ""
 end
 
+-- 2026-11-01 (Tefa: "yes": the finger poses without the app open): each gun's (and spot's) pose is loaded HERE too, from
+-- data/hand_poser/guns/<gun>[ @ <spot>].json (the app keeps a copy of every gun pose there; REFramework Lua may read only
+-- under reframework/data), whenever the gun or the left hand's spot changes. The same choice as the app's (PoserUi
+-- GunCheck): the spot's own pose if it has one; a spot with none keeps the pose in hand; no spot = the gun's own. With the
+-- app open its command follows a moment later with the same pose and wins, so tuning works as before.
+local GUNS_DIR = DIR .. "guns/"
+local own_key, own_loads = nil, 0
+local function safe_name(n) return (n:gsub('[<>:"/\\|%?%*]', "_"):gsub("^%s+", ""):gsub("%s+$", "")) end
+local function load_own_pose()
+    local key = (gun_now == "" and "no gun" or gun_now) .. (spot_now ~= "" and (" @ " .. spot_now) or "")
+    if key == own_key then return end
+    own_key = key
+    local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
+    if not ok or type(d) ~= "table" or type(d.joints) ~= "table" then return end   -- none kept: the pose in hand stays
+    held = {}
+    for name, v in pairs(d.joints) do
+        if type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+    end
+    own_loads = own_loads + 1
+    if own_loads <= 50 then log.info("[hand_poser] own pose loaded: " .. key) end
+end
+
 local function write_state()
     last_state_t = now()
     write_state_now = false
@@ -337,6 +359,7 @@ re.on_frame(function()
         local sp = current_spot()
         if sp ~= spot_now then spot_now = sp; write_state_now = true end
     end
+    if gun_checked_frame == frame or spot_checked_frame == frame then pcall(load_own_pose) end
     local every = (next(held) ~= nil or #want_read > 0) and STATE_LIVE_SEC or STATE_EVERY_SEC
     if write_state_now or now() - last_state_t > every then
         local ok, err = pcall(write_state)

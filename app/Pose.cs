@@ -236,7 +236,24 @@ class PoseModel {
     public void Autosave() {
         Directory.CreateDirectory(GameDir);
         File.WriteAllText(AutosaveFile, Json.Write(ToJson()));
-        if (GunPoseFile != null) { Directory.CreateDirectory(GunsDir); File.WriteAllText(GunPoseFile, Json.Write(ToJson())); }
+        if (GunPoseFile != null) {
+            Directory.CreateDirectory(GunsDir);
+            File.WriteAllText(GunPoseFile, Json.Write(ToJson()));
+            MirrorOne(GunPoseFile);
+        }
+    }
+
+    // 2026-11-01 (Tefa: "yes": the finger poses without the app open): every gun pose is also kept in the game's own
+    // reframework\data\hand_poser\guns\, where the game script loads it whenever the gun or the hand's spot changes
+    public string MirrorDir;                // null = no game folder known yet
+    void MirrorOne(string file) {
+        if (MirrorDir == null || file == null || !File.Exists(file)) return;
+        try { Directory.CreateDirectory(MirrorDir); File.Copy(file, Path.Combine(MirrorDir, Path.GetFileName(file)), true); }
+        catch (IOException) { } catch (UnauthorizedAccessException) { }
+    }
+    public void MirrorAll() {               // once the game folder is known: every gun pose kept so far
+        if (MirrorDir == null || !Directory.Exists(GunsDir)) return;
+        foreach (var f in Directory.GetFiles(GunsDir, "*.json")) MirrorOne(f);
     }
 
     // ---- one pose per gun (2026-10-25, Tefa: "yes please make it automatic!"): guns\<gun>.json beside the autosave. While

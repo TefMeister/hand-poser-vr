@@ -319,6 +319,7 @@ class PoserUi : Form {
     CheckBox perSpotBox;
     void GunCheck() {
         if (!perGun || !autosaveLoaded || !model.Connected || model.Game == "") return;
+        if (model.MirrorDir == null && link.DataDir != null) { model.MirrorDir = Path.Combine(link.DataDir, "guns"); model.MirrorAll(); }
         string g = model.Gun ?? "";
         if (perSpot && !string.IsNullOrEmpty(model.Spot)) g += " @ " + model.Spot;   // a spot keeps its own pose too
         if (poseGun == g) { model.GunPoseFile = model.GunFile(g); return; }
