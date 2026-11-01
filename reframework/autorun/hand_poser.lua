@@ -37,6 +37,9 @@ local last_state_t = 0
 -- re8vr.weapon (its GameObject's name, e.g. "ri3042_Inventory"); RE2 / RE3: the same field on their VR table if there is one.
 -- "" = no gun (or a game where it cannot be read: then every pose is the "no gun" one)
 local gun_now, gun_checked_frame = "", -100
+-- 2026-11-01: Visceral RE2 / RE3's bridge slots: the gun in hand's WP number, the left hand on the gun (1)
+local VB_GUN, VB_LEFT = 84, 539
+if tostring(game):lower() == "re3" then VB_GUN, VB_LEFT = 57, 58 end
 local function current_gun()
     local name = ""
     for _, tname in ipairs({ "re8vr", "re2vr", "re3vr", "re2" }) do
@@ -58,11 +61,11 @@ local function current_gun()
             if name ~= "" then break end
         end
     end
-    -- 2026-11-01 RE2 (Visceral RE2's bridge): the plugin writes the gun in hand's WP number to slot 84 (-1 = none)
+    -- 2026-11-01 RE2 / RE3 (Visceral's bridge): the plugin writes the gun in hand's WP number to slot VB_GUN (-1 = none)
     if name == "" then
         local vb = rawget(_G, "visceral_bridge")
         if type(vb) == "table" and type(vb.r) == "function" then
-            local ok, wp = pcall(vb.r, 84)
+            local ok, wp = pcall(vb.r, VB_GUN)
             if ok and type(wp) == "number" and wp >= 0 then name = string.format("wp%04d", math.floor(wp + 0.5)) end
         end
     end
@@ -339,7 +342,7 @@ end
 local function hands_on_gun()
     local vb = rawget(_G, "visceral_bridge")   -- 2026-11-01 Visceral RE2: slot 539 = the left hand is on the gun
     if type(vb) == "table" and type(vb.r) == "function" and rawget(_G, "visceral_re8_bridge") == nil then
-        local ok, l = pcall(vb.r, 539)
+        local ok, l = pcall(vb.r, VB_LEFT)
         return ok and type(l) == "number" and l > 0.5, gun_now ~= ""
     end
     local b = rawget(_G, "visceral_re8_bridge")
