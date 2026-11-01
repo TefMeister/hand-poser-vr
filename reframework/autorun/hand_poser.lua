@@ -279,6 +279,20 @@ local function current_spot()
     if v == 7 then return "insert point" end
     if v == 8 then return "slide from the left" end   -- 2026-10-28: a pistol's slide taken from the gun hand's left (Visceral RE8)
     if v == 9 then return "rounds from the pouch" end   -- 2026-10-28: rounds held in the left hand (Visceral RE8)
+    if v == 10 then return "hammer" end   -- 2026-11-02: the Wolfsbane's hammer, the left palm on it (Visceral RE8)
+    return ""
+end
+-- 2026-11-02 (Tefa: "same with the right hand when it docks on the gun to insert bullets"): Visceral RE8's slot 184, the right
+-- hand's spot; it joins the left's in the spot name, so a pose is kept for each pair of places
+local RIGHT_SPOT_SLOT = 184
+local function right_spot()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
+    local ok, v = pcall(b.r, RIGHT_SPOT_SLOT)
+    if not ok or type(v) ~= "number" then return "" end
+    v = math.floor(v + 0.5)
+    if v == 1 then return "right hand on the cover" end
+    if v == 2 then return "right hand on the bolt" end
     return ""
 end
 
@@ -393,6 +407,8 @@ re.on_frame(function()
     if frame - spot_checked_frame >= 3 then   -- the hand lands in a fraction of a second: its spot is told quickly
         spot_checked_frame = frame
         local sp = current_spot()
+        local rs = right_spot()
+        if rs ~= "" then sp = sp ~= "" and (sp .. " + " .. rs) or rs end
         if sp ~= spot_now then spot_now = sp; write_state_now = true end
     end
     if gun_checked_frame == frame or spot_checked_frame == frame then pcall(load_own_pose) end

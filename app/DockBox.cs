@@ -88,7 +88,7 @@ class DockBox : SkinPanel {
     void ShowValue(Axis a) { a.Value.Text = string.Format("{0:+0.0;-0.0;0.0} {1}", a.Bar.Value / (double)STEPS, a.Unit); }
 
     // the spots the plugin docks the left hand on (visceral-re8-vr src/dockpose.h)
-    static bool Docked(int s) { return (s >= 3 && s <= 9) || (s >= 1000 && s < 2000); }
+    static bool Docked(int s) { return (s >= 3 && s <= 10) || (s >= 1000 && s < 2000); }
     static string SpotName(int s) {
         switch (s) {
         case 3: return "the slide / pump / bolt";
@@ -98,6 +98,7 @@ class DockBox : SkinPanel {
         case 7: return "the insert point";
         case 8: return "the slide, from the left";
         case 9: return "rounds from the pouch";
+        case 10: return "the hammer";   // 2026-11-02: the Wolfsbane, the left palm on it
         default: return s >= 1000 && s < 2000 ? "pair " + (s - 1000) + "'s landing spot" : "nothing";
         }
     }
