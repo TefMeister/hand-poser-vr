@@ -58,6 +58,14 @@ local function current_gun()
             if name ~= "" then break end
         end
     end
+    -- 2026-11-01 RE2 (Visceral RE2's bridge): the plugin writes the gun in hand's WP number to slot 84 (-1 = none)
+    if name == "" then
+        local vb = rawget(_G, "visceral_bridge")
+        if type(vb) == "table" and type(vb.r) == "function" then
+            local ok, wp = pcall(vb.r, 84)
+            if ok and type(wp) == "number" and wp >= 0 then name = string.format("wp%04d", math.floor(wp + 0.5)) end
+        end
+    end
     return name
 end
 local last_relink_t = 0
@@ -327,8 +335,13 @@ end
 -- weapon seemed to not go back into a default pose, but stayed as the last tuned pose"): a hand's fingers are held only while
 -- that hand is on the gun: the left while it is docked anywhere on it (a spot, or the two-handed front grip: Visceral RE8's
 -- bridge slots 153 and 36), the right while a gun is in hand. A free hand is the game's again, and Visceral RE8's open / close
--- with the grip button works on it. With no Visceral RE8 bridge (RE2 / RE3) everything is held, as before.
+-- with the grip button works on it. Visceral RE2's bridge says the same for RE2 (slot 539). With neither, everything is held.
 local function hands_on_gun()
+    local vb = rawget(_G, "visceral_bridge")   -- 2026-11-01 Visceral RE2: slot 539 = the left hand is on the gun
+    if type(vb) == "table" and type(vb.r) == "function" and rawget(_G, "visceral_re8_bridge") == nil then
+        local ok, l = pcall(vb.r, 539)
+        return ok and type(l) == "number" and l > 0.5, gun_now ~= ""
+    end
     local b = rawget(_G, "visceral_re8_bridge")
     if type(b) ~= "table" or type(b.r) ~= "function" then return true, true end
     local ok1, sp = pcall(b.r, SPOT_SLOT)
