@@ -371,6 +371,15 @@ local function apply()
     -- 2026-10-25: how many joints this script holds, for other mods that pose the same joints (Visceral RE8's open hand
     -- stands down while a finger is held here). 2026-11-01: the LEFT hand's joints actually held (that open hand is the left's)
     local left_on, right_on = hands_on_gun()
+    -- 2026-11-05 (Tefa, Visceral RE8: "when docked and shells in my hand, the fingers don't move at all"): while Visceral RE8 plays
+    -- the game's own finger movement on a hand (its bridge slot 186: +1 left, +2 right), that hand is left to it
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) == "table" and type(b.r) == "function" then
+        local ok, c = pcall(b.r, 186)
+        c = ok and type(c) == "number" and math.floor(c + 0.5) or 0
+        if c % 2 == 1 then left_on = false end
+        if c >= 2 then right_on = false end
+    end
     local nl, n = 0, 0
     if not target or next(held) == nil then _G.hand_poser_held = 0; _G.hand_poser_held_all = 0; return end
     for name, v in pairs(held) do
