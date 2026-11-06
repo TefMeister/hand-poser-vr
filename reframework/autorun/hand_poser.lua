@@ -293,6 +293,7 @@ local function right_spot()
     v = math.floor(v + 0.5)
     if v == 1 then return "right hand on the cover" end
     if v == 2 then return "right hand on the bolt" end
+    if v == 3 then return "right hand over the hammer" end   -- 2026-11-06: the Wolfsbane's right hand lifted over the hammer, the cover open (Visceral RE8 b075)
     return ""
 end
 
