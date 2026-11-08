@@ -16,6 +16,8 @@
 // pointer and so pass through this window's own message queue) makes that window the OWNER: only the owner's ticked sliders
 // step and only the owner claims the buttons from Window View. The owner keeps its beat fresh while it runs and lets go when
 // it closes; with no fresh owner (nothing clicked yet, or the owner gone) every helper steps, as before.
+// The owner shows a YELLOW STRIP across the top of its window (Tefa 2026-11-08: "a yellow top part would be nice"), so the
+// window the buttons reach can be seen at a glance in the headset; the strip goes as soon as another helper is clicked.
 using System;
 using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
@@ -41,6 +43,11 @@ class Nudge : IDisposable {
     MemoryMappedViewAccessor ownerView;
     readonly int myPid = Process.GetCurrentProcess().Id;
     public bool Owner { get; private set; }   // this window answers the buttons now (the last helper clicked, or no fresh owner)
+    const int MARK_H = 8;
+    static readonly System.Drawing.Color MARK = System.Drawing.Color.FromArgb(255, 205, 0);
+    const string MARK_NAME = "abxy_owner_strip";
+    Form markForm;     // the window last clicked in this app: the strip goes on it
+    Panel mark;
 
     public Nudge() { Application.AddMessageFilter(new ClickWatch(this)); }
 
@@ -49,7 +56,12 @@ class Nudge : IDisposable {
         public ClickWatch(Nudge n) { this.n = n; }
         public bool PreFilterMessage(ref Message m) {
             int k = m.Msg;
-            if (k == 0x201 || k == 0x203 || k == 0x204 || k == 0x207 || k == 0xA1 || k == 0xA4) n.TakeOwnership();
+            if (k == 0x201 || k == 0x203 || k == 0x204 || k == 0x207 || k == 0xA1 || k == 0xA4) {
+                var c = Control.FromHandle(m.HWnd);
+                var f = c as Form ?? (c != null ? c.FindForm() : null);
+                if (f != null) n.markForm = f;
+                n.TakeOwnership();
+            }
             return false;
         }
     }
@@ -74,9 +86,24 @@ class Nudge : IDisposable {
         try {
             int pid = ownerView.ReadInt32(OWNER_PID);
             ulong beat = ownerView.ReadUInt64(OWNER_BEAT), now = GetTickCount64();
-            if (pid == myPid) { ownerView.Write(OWNER_BEAT, now); return true; }
+            if (pid == myPid) { ownerView.Write(OWNER_BEAT, now); ShowMark(true); return true; }
+            ShowMark(false);
             return pid == 0 || now - beat > OWNER_STALE_MS;
         } catch (Exception) { CloseOwner(); return true; }
+    }
+    void ShowMark(bool on) {   // the yellow strip on top of the window last clicked (one per window, even with two Nudges)
+        if (markForm == null || markForm.IsDisposed) { if (mark != null && !mark.IsDisposed) mark.Visible = false; return; }
+        if (mark == null || mark.IsDisposed || mark.Parent != markForm) {
+            if (mark != null && !mark.IsDisposed && mark.Parent != markForm) mark.Visible = false;
+            var found = markForm.Controls.Find(MARK_NAME, false);
+            mark = found.Length > 0 ? (Panel)found[0] : null;
+            if (mark == null) {
+                if (!on) return;
+                mark = new Panel { Name = MARK_NAME, Dock = DockStyle.Top, Height = MARK_H, BackColor = MARK, Visible = false };
+                markForm.Controls.Add(mark);   // added last = docked first = the very top
+            }
+        }
+        if (mark.Visible != on) mark.Visible = on;
     }
 
     [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
