@@ -150,6 +150,7 @@ class PoserUi : Form {
         nudgeRow.Controls.Add(nudgeNote);
         // 2026-10-28: the docked left wrist (Visceral RE8), where the joint list was; folds on its own header
         dockBox = new DockBox(this, (t, h, w) => Btn(t, h, w), settings.Get("dock_open", "1") == "1") { Visible = false };
+        nudge.Section(dockBox, "dock");
         dockBox.HeightChanged += () => { settings.Set("dock_open", dockBox.Open ? "1" : "0"); SizeTop(); };
         // docked controls stack bottom-up in the order added, so add in reverse
         top.Controls.Add(nudgeRow);
@@ -239,15 +240,16 @@ class PoserUi : Form {
             if (nudgeSaving && !started) { nudgeSaving = false; try { model.Autosave(); } catch (IOException) { } }
             return;
         }
-        if (dockShown) dockBox.Step(step, ticked);   // the docked wrist's ticked sliders (DockBox.cs)
-        if (ticked.All(k => k.StartsWith("dock:"))) return;
+        var use = nudge.Filter(ticked);   // 2026-11-08: only the part clicked last (Nudge.cs), when it has ticks
+        if (dockShown) dockBox.Step(step, use);   // the docked wrist's ticked sliders (DockBox.cs)
+        if (use.All(k => k.StartsWith("dock:"))) return;
         if (started) model.Mark();   // one undo step per press (its repeats included)
         nudgeSaving = true;
         // every slider to step, once each, whether ticked on its own or through its finger's bar
         var targets = new HashSet<string>();
-        foreach (var r in model.Rows) foreach (var a in new[] { "X", "Y", "Z" }) if (ticked.Contains(r.Name + ":" + a)) targets.Add(r.Name + ":" + a);
+        foreach (var r in model.Rows) foreach (var a in new[] { "X", "Y", "Z" }) if (use.Contains(r.Name + ":" + a)) targets.Add(r.Name + ":" + a);
         foreach (var g in model.Groups()) {
-            if (!ticked.Contains("group:" + g.Key)) continue;
+            if (!use.Contains("group:" + g.Key)) continue;
             string axis = GroupAxis(g.Key);
             foreach (var r in g.Value) targets.Add(r.Name + ":" + axis);
         }
@@ -494,10 +496,11 @@ class PoserUi : Form {
             foreach (var jr in mine) h += jr.Height;
             box.Height = h;
             fingerBoxes[g.Key] = box;
+            nudge.Section(box, "finger:" + g.Key);   // 2026-11-08: the buttons reach the part clicked last (Nudge.cs)
             order.Add(box);
             order.Add(gap);
         }
-        foreach (var r in model.Rows) if (!inGroup.Contains(r) && SideShown(SideOfName(r.Name))) { var jr = new JointRow(r, this, null); rows.Add(jr); order.Add(jr); }
+        foreach (var r in model.Rows) if (!inGroup.Contains(r) && SideShown(SideOfName(r.Name))) { var jr = new JointRow(r, this, null); rows.Add(jr); order.Add(jr); nudge.Section(jr, "joint:" + r.Name); }
         for (int i = order.Count - 1; i >= 0; i--) rowsPanel.Controls.Add(order[i]);
         rowsPanel.ResumeLayout();
     }

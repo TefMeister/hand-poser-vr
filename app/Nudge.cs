@@ -18,7 +18,16 @@
 // it closes; with no fresh owner (nothing clicked yet, or the owner gone) every helper steps, as before.
 // The owner shows a YELLOW STRIP across the top of its window (Tefa 2026-11-08: "a yellow top part would be nice"), so the
 // window the buttons reach can be seen at a glance in the headset; the strip goes as soon as another helper is clicked.
+//
+// 2026-11-08 (Tefa: "make the category active, not just a window. for instance if index finger and thumb both have ticked boxes,
+// just move the thumb ones if that was clicked on last and make that dark yellow for the whole thumb section"): inside the
+// window, each app names its parts with Section(control, name) (a finger's box, a zone's box, a joint's row). The buttons
+// reach only the ticked sliders of the part clicked last that HAS a ticked box (clicking a part with none changes nothing);
+// that part is shaded DARK YELLOW while this window is the owner. Nothing clicked in a part yet: every ticked slider, as before.
+// Apps ask Allows(control) (is this slider in the reached part?) or Filter(ticked keys) (the ticked keys in the reached part,
+// read from the tick boxes' Tag). A tick box is a CheckBox with no text.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
@@ -51,6 +60,82 @@ class Nudge : IDisposable {
 
     public Nudge() { Application.AddMessageFilter(new ClickWatch(this)); }
 
+    // ---- the part clicked last (2026-11-08) ----
+    readonly Dictionary<string, Control> sections = new Dictionary<string, Control>();
+    readonly List<string> recent = new List<string>();   // part names, the last clicked first
+    static readonly System.Drawing.Color ACTIVE_TINT = System.Drawing.Color.FromArgb(215, 104, 80, 0);   // dark yellow
+    Control shaded;
+    object shadedWas;
+    // name a part; the same name again (a rebuilt box) replaces the old control
+    public void Section(Control c, string name) { sections[name] = c; }
+    string SectionOf(Control c) {
+        for (; c != null; c = c.Parent) foreach (var kv in sections) if (kv.Value == c) return kv.Key;
+        return null;
+    }
+    static bool IsTick(CheckBox b) { return string.IsNullOrEmpty(b.Text); }
+    static bool HasTicked(Control c) {
+        foreach (Control k in c.Controls) {
+            var b = k as CheckBox;
+            if (b != null && b.Checked && IsTick(b)) return true;
+            if (HasTicked(k)) return true;
+        }
+        return false;
+    }
+    static void TagsOf(Control c, HashSet<string> into) {
+        foreach (Control k in c.Controls) {
+            var b = k as CheckBox;
+            if (b != null && b.Checked && IsTick(b) && b.Tag is string) into.Add((string)b.Tag);
+            TagsOf(k, into);
+        }
+    }
+    // the part the buttons reach: the last clicked one with a ticked box, or null (then every ticked slider)
+    public Control Active {
+        get {
+            foreach (var n in recent) {
+                Control c;
+                if (sections.TryGetValue(n, out c) && c != null && !c.IsDisposed && HasTicked(c)) return c;
+            }
+            return null;
+        }
+    }
+    public bool Allows(Control c) {
+        var a = Active;
+        if (a == null) return true;
+        for (; c != null; c = c.Parent) if (c == a) return true;
+        return false;
+    }
+    public HashSet<string> Filter(HashSet<string> ticked) {
+        var a = Active;
+        if (a == null) return ticked;
+        var keys = new HashSet<string>();
+        TagsOf(a, keys);
+        keys.IntersectWith(ticked);
+        return keys;
+    }
+    void Clicked(Control c) {
+        string n = SectionOf(c);
+        if (n == null) return;
+        recent.Remove(n);
+        recent.Insert(0, n);
+    }
+    void Shade(Control want) {   // the reached part dark yellow (its Tint when it has one, else its BackColor)
+        if (want == shaded) return;
+        if (shaded != null && !shaded.IsDisposed) SetTint(shaded, shadedWas);
+        shaded = want;
+        shadedWas = null;
+        if (want != null) { shadedWas = GetTint(want); SetTint(want, ACTIVE_TINT); }
+    }
+    static object GetTint(Control c) {
+        var p = c.GetType().GetProperty("Tint");
+        return p != null ? p.GetValue(c, null) : (object)c.BackColor;
+    }
+    static void SetTint(Control c, object v) {
+        if (v == null) return;
+        var p = c.GetType().GetProperty("Tint");
+        if (p != null) p.SetValue(c, v, null); else c.BackColor = (System.Drawing.Color)v;
+        c.Invalidate(true);
+    }
+
     class ClickWatch : IMessageFilter {   // any mouse button down in this app's windows (client area or title bar)
         readonly Nudge n;
         public ClickWatch(Nudge n) { this.n = n; }
@@ -61,6 +146,7 @@ class Nudge : IDisposable {
                 var f = c as Form ?? (c != null ? c.FindForm() : null);
                 if (f != null) n.markForm = f;
                 n.TakeOwnership();
+                n.Clicked(c);
             }
             return false;
         }
@@ -127,6 +213,7 @@ class Nudge : IDisposable {
     public double Poll(bool anyTicked, out bool pressStarted) {
         pressStarted = false;
         Owner = IsOwner();
+        Shade(Owner && anyTicked ? Active : null);
         if (!Open()) return 0;
         int buttons; float rg, lg; bool ctrl;
         try {
