@@ -53,11 +53,14 @@ static class SelfTest {
             bool leftBend = l == "IN" && r == "OUT" && !f;
             HandAxes.Ends("L_Hand", 2, out l, out r, out f);
             bool wrist = l == "DOWN" && r == "UP" && !f;
-            HandAxes.Ends("L_Thumb3", 1, out l, out r, out f);
+            HandAxes.Ends("L_IndexF2", 1, out l, out r, out f);
             bool side = l == "LEFT" && f;
+            // 2026-11-09: the thumb's tip curls on Y, shown in the right-hand column as IN / OUT (IN on the left end for the left hand)
+            HandAxes.Ends("L_Thumb3", 1, out l, out r, out f);
+            side = side && l == "IN" && f && HandAxes.Column("L_Thumb3", 1) == 2 && HandAxes.Column("L_Thumb3", 2) == 1 && HandAxes.Column("L_IndexF3", 2) == 2;
             HandAxes.Ends("L_Forearm", 0, out l, out r, out f);
             bool other = l == "-X" && r == "+X" && !f;
-            Check("slider ends: right fingers' bend shown turned round, left not; the wrist DOWN / UP; sideways LEFT / RIGHT; an arm joint plain",
+            Check("slider ends: right fingers' bend shown turned round, left not; the wrist DOWN / UP; sideways LEFT / RIGHT; the thumb tip's curl in the right column; an arm joint plain",
                   rightBend && leftBend && wrist && side && other);
         }
         Check("plain names: R_IndexF1 is the right index knuckle, l_hand_thumb_2 the left thumb tip, L_Hand the left wrist",

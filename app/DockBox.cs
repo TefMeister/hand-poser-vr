@@ -17,7 +17,7 @@ class DockBox : SkinPanel {
     const double CM_PER_M = 100.0;
     const int STEPS = 10;                  // sliders count tenths of a centimetre / of a degree
     const double NUDGE_CM = 0.5;           // one controller press moves a position slider this far (and an angle slider 1 degree)
-    public const int OPEN_H = 190, SHUT_H = 34;
+    public const int OPEN_H = 202, SHUT_H = 34;   // 2026-11-09: 190 -> 202, the taller sliders below
     static readonly Color Ink = Color.FromArgb(232, 232, 236), Dim = Color.FromArgb(150, 155, 170), Panel2 = Color.FromArgb(38, 41, 52);
 
     // 2026-11-08 (Tefa: left end = down / in / left / turn left, right end = up / out / right / turn right): measured in Village
@@ -55,7 +55,7 @@ class DockBox : SkinPanel {
         Controls.Add(fold); Controls.Add(where);
         foreach (var a in axes) {
             var ax = a;
-            ax.Bar = new FancySlider { Minimum = (int)(-a.Range * STEPS), Maximum = (int)(a.Range * STEPS), SmallChange = 5, LargeChange = 50, Height = 30, Signed = true, LeftText = a.L, RightText = a.R };
+            ax.Bar = new FancySlider { Minimum = (int)(-a.Range * STEPS), Maximum = (int)(a.Range * STEPS), SmallChange = 5, LargeChange = 50, Height = 38, Signed = true, LeftText = a.L, RightText = a.R };   // 2026-11-09 (Tefa: "BACK/FORWARD under the sliders are cut off half way"): 30 px cut the words under the ends; 38 holds them
             ax.Bar.Scroll += (o, e) => { ShowValue(ax); if (!syncing) { saveTimer.Stop(); saveTimer.Start(); } };
             ax.Value = new SkinLabel { AutoSize = true, ForeColor = Ink };
             string key = "dock:" + a.Key;
@@ -86,7 +86,7 @@ class DockBox : SkinPanel {
         int w = ClientSize.Width, col = (w - 12) / 2;
         for (int i = 0; i < axes.Length; i++) {
             var a = axes[i];
-            int x = 6 + (i % 2) * col, y = 40 + (i / 2) * 48;
+            int x = 6 + (i % 2) * col, y = 40 + (i / 2) * 54;   // (48 -> 54 with the taller sliders)
             foreach (Control c in Controls) if ((c.Tag as string) == "words:" + a.Key) c.Location = new Point(x + 34, y - 2);
             a.Tick.Location = new Point(x, y + 10);
             a.Value.Location = new Point(x + col - 70, y + 14);

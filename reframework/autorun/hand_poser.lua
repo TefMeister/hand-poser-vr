@@ -338,7 +338,10 @@ local function load_own_pose()
     own_key = key
     if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
-    local found = ok and type(d) == "table" and type(d.joints) == "table"
+    local found = ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
+    -- 2026-11-09 (Tefa, the LEMI: "hand pose when getting to the end of the slide rack must stay the same until LT is released"):
+    -- the window keeps an EMPTY file ({"joints":{}}) for a spot never posed ("slide from the left at the back"), which loaded as a
+    -- pose of nothing and let the fingers go at the click. An empty file now counts as none: the pose in hand stays
     spot_unposed = (not found) and FREE_UNLESS_POSED[spot_now] == true
     if not found then return end   -- none kept: the pose in hand stays
     held = {}

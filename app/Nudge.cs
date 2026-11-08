@@ -6,8 +6,16 @@
 // CONTROL mode is on (left stick click: the game's hands are frozen then, so the buttons reach nobody else). Its shared block is
 // read here, and while any box is ticked this app writes a claim into it, so Window View leaves A, Y and the grips alone
 // (no right-click, no recentre, no carrying) for as long as the claim is fresh.
-//   X = -1 degree, Y = -5, A = +1, B = +5 on every ticked slider (a ticked finger bar: on all its joints, on its axis).
-//   Held left grip: X and Y repeat at once and keep repeating while held; held right grip: the same for A and B.
+//   (until 2026-11-09: X = -1 degree, Y = -5, A = +1, B = +5, the grips repeating; now the right stick, see NEW BUTTONS below)
+//
+// 2026-11-09 (Tefa, in the headset: "undo button and redo buttons, can they be Y and B, and change the slider tuning to the RS so
+// left and right are -1 and +1, up and down on the stick are +5 and -5. that leaves A to use for selecting checkboxes ... and X for
+// unselect all", "please use these buttons in all helper apps"): NEW BUTTONS, the same in every helper:
+//   right stick right / left = +1 / -1, up / down = +5 / -5 on the ticked sliders (held past HOLD_MS: repeats every REPEAT_MS)
+//   Y = this window's UNDO button, B = its REDO button (any button whose text is "undo" / "redo"), X = every tick box unticked
+//   A = Window View's left click (it is no longer borrowed here); the grips are Window View's again (carrying windows)
+// Y / B / X act only in the window clicked last (the yellow strip); the stick needs a ticked box, as before. Needs Window View
+// 1.10 (the stick's left / right, header 644 bytes).
 //
 // 2026-11-08 (Tefa: "have this active only on the window that i clicked on last ... just clicking on the window should be
 // enough, without needing to actually check a box"): every helper window with this file (Hand Poser, Grip Zones, Gun Poser,
@@ -36,14 +44,17 @@ using System.Windows.Forms;
 class Nudge : IDisposable {
     // Window View's shared block (window-view-vr shared.h, header v2 of 636 bytes)
     const string MAPPING = @"Local\FlatToVR_WindowView_v2";
-    const int HEADER = 636, CTRL_MODE = 536, SQUEEZE = 576, BUTTONS = 584, LSQUEEZE = 620, BUTTON_CLAIM = 628;
+    const int HEADER = 644, CTRL_MODE = 536, STICK_Y = 580, BUTTONS = 584, BUTTON_CLAIM = 628, STICK_X = 636;
     const int B_A = 1, B_Y = 2, B_B = 4, B_X = 8;
-    const float GRIP_DOWN = 0.6f;
-    public const int REPEAT_MS = 60;   // held grip: a step every 60 ms (about 16 a second), the first at once
+    const float STICK_ON = 0.6f, STICK_OFF = 0.3f;   // the stick counts as pushed past ON, let go below OFF
+    public const int HOLD_MS = 400;     // a stick held this long starts repeating
+    public const int REPEAT_MS = 60;    // then a step every 60 ms (about 16 a second)
+    int stickDir;                       // 0 none, 1 right (+1), 2 left (-1), 3 up (+5), 4 down (-5)
+    int stickSince, stickLast;
+    bool mine;                          // this window was clicked last (it wears the strip)
     MemoryMappedFile file;
     MemoryMappedViewAccessor view;
     int lastOpenTry = -100000, lastButtons;
-    readonly int[] lastStep = new int[4];   // per button: when its last repeat fired
     public bool Linked { get { return view != null; } }
 
     const string OWNER_MAPPING = @"Local\FlatToVR_SliderOwner_v1";
@@ -172,7 +183,8 @@ class Nudge : IDisposable {
         try {
             int pid = ownerView.ReadInt32(OWNER_PID);
             ulong beat = ownerView.ReadUInt64(OWNER_BEAT), now = GetTickCount64();
-            if (pid == myPid) { ownerView.Write(OWNER_BEAT, now); ShowMark(true); return true; }
+            mine = pid == myPid;
+            if (mine) { ownerView.Write(OWNER_BEAT, now); ShowMark(true); return true; }
             ShowMark(false);
             return pid == 0 || now - beat > OWNER_STALE_MS;
         } catch (Exception) { CloseOwner(); return true; }
@@ -209,33 +221,74 @@ class Nudge : IDisposable {
         if (file != null) { file.Dispose(); file = null; }
     }
 
-    // once a tick (about every 15 ms): returns the steps (in degrees) to apply now, 0 = none; `anyTicked` claims the buttons
+    // once a tick (about every 15 ms): returns the steps (in degrees) to apply now, 0 = none; `anyTicked` claims the stick
     public double Poll(bool anyTicked, out bool pressStarted) {
         pressStarted = false;
+        mine = false;
         Owner = IsOwner();
         Shade(Owner && anyTicked ? Active : null);
         if (!Open()) return 0;
-        int buttons; float rg, lg; bool ctrl;
+        int buttons; float sx, sy; bool ctrl;
         try {
             ctrl = view.ReadInt32(CTRL_MODE) != 0;
             buttons = view.ReadInt32(BUTTONS);
-            rg = view.ReadSingle(SQUEEZE);
-            lg = view.ReadSingle(LSQUEEZE);
-            if (anyTicked && ctrl && Owner) view.Write(BUTTON_CLAIM, GetTickCount64());
+            sx = view.ReadSingle(STICK_X);
+            sy = view.ReadSingle(STICK_Y);
+            if (ctrl && Owner && (anyTicked || mine)) view.Write(BUTTON_CLAIM, GetTickCount64());
         } catch (Exception) { Close(); return 0; }
-        if (!anyTicked || !ctrl || !Owner) { lastButtons = buttons; return 0; }
-        double total = 0;
-        int now = Environment.TickCount;
-        int[] bits = { B_X, B_Y, B_A, B_B };
-        double[] steps = { -1, -5, +1, +5 };
-        for (int i = 0; i < 4; i++) {
-            bool down = (buttons & bits[i]) != 0, was = (lastButtons & bits[i]) != 0;
-            bool repeat = (i < 2 ? lg : rg) > GRIP_DOWN;   // X / Y repeat with the left grip, A / B with the right
-            if (down && !was) { total += steps[i]; lastStep[i] = now; pressStarted = true; }
-            else if (down && repeat && now - lastStep[i] >= REPEAT_MS) { total += steps[i]; lastStep[i] = now; }
+        if (!ctrl || !Owner) { lastButtons = buttons; stickDir = 0; return 0; }
+        if (mine) {   // Y undo, B redo, X untick everything: the window clicked last only
+            if (Pressed(buttons, B_Y)) ClickNamed("undo");
+            if (Pressed(buttons, B_B)) ClickNamed("redo");
+            if (Pressed(buttons, B_X)) UntickAll();
         }
         lastButtons = buttons;
+        if (!anyTicked) { stickDir = 0; return 0; }
+        // the stick: one direction at a time, the stronger axis
+        int dir = 0;
+        float ax = Math.Abs(sx), ay = Math.Abs(sy);
+        float on = stickDir == 0 ? STICK_ON : STICK_OFF;
+        if (Math.Max(ax, ay) > on) dir = ax >= ay ? (sx > 0 ? 1 : 2) : (sy > 0 ? 3 : 4);
+        int now = Environment.TickCount;
+        double[] steps = { 0, +1, -1, +5, -5 };
+        double total = 0;
+        if (dir != stickDir) {
+            stickDir = dir;
+            if (dir != 0) { total = steps[dir]; stickSince = stickLast = now; pressStarted = true; }
+        } else if (dir != 0 && now - stickSince >= HOLD_MS && now - stickLast >= REPEAT_MS) {
+            total = steps[dir]; stickLast = now;
+        }
         return total;
+    }
+    bool Pressed(int buttons, int bit) { return (buttons & bit) != 0 && (lastButtons & bit) == 0; }
+    // a button of this window's whose text is the word (UNDO / REDO): clicked as if by the mouse
+    void ClickNamed(string word) {
+        var f = markForm;
+        if (f == null || f.IsDisposed) return;
+        var b = FindButton(f, word);
+        if (b != null && b.Enabled && b.Visible) b.PerformClick();
+    }
+    static Button FindButton(Control c, string word) {
+        foreach (Control k in c.Controls) {
+            var b = k as Button;
+            if (b != null && string.Equals((b.Text ?? "").Trim(), word, StringComparison.OrdinalIgnoreCase)) return b;
+            var r = FindButton(k, word);
+            if (r != null) return r;
+        }
+        return null;
+    }
+    // every tick box in this app's open windows unticked (their own CheckedChanged keeps each app's list right)
+    static void UntickAll() {
+        var forms = new List<Form>();
+        foreach (Form f in Application.OpenForms) forms.Add(f);
+        foreach (var f in forms) Untick(f);
+    }
+    static void Untick(Control c) {
+        foreach (Control k in c.Controls) {
+            var b = k as CheckBox;
+            if (b != null && b.Checked && IsTick(b)) b.Checked = false;
+            Untick(k);
+        }
     }
 
     public void Dispose() {

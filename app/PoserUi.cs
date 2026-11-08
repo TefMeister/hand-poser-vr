@@ -692,8 +692,9 @@ class PoserUi : Form {
                     reset.Location = new Point(remove.Left - reset.Width - 4, 10);
                     int left = 150, sw = Math.Max(90, (reset.Left - 8 - left) / 3);
                     for (int i = 0; i < 3; i++) {
-                        ticks[i].Location = new Point(left + i * sw, 7);
-                        sliders[i].Location = new Point(left + i * sw + 32, 2); sliders[i].Width = sw - 38;
+                        int c = HandAxes.Column(Model.Name, i);   // 2026-11-09: the thumb's tip shows its curl on the right, as the fingers
+                        ticks[i].Location = new Point(left + c * sw, 7);
+                        sliders[i].Location = new Point(left + c * sw + 32, 2); sliders[i].Width = sw - 38;
                     }
                     return;
                 }
@@ -702,8 +703,9 @@ class PoserUi : Form {
                 values.Location = new Point(6, 24);
                 int sw2 = (w - 12) / 3;
                 for (int i = 0; i < 3; i++) {
-                    ticks[i].Location = new Point(6 + i * sw2, 47);
-                    sliders[i].Location = new Point(6 + i * sw2 + 32, 46); sliders[i].Width = sw2 - 36;
+                    int c = HandAxes.Column(Model.Name, i);
+                    ticks[i].Location = new Point(6 + c * sw2, 47);
+                    sliders[i].Location = new Point(6 + c * sw2 + 32, 46); sliders[i].Width = sw2 - 36;
                 }
             };
             PullFromModel();

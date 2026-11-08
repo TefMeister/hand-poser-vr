@@ -35,12 +35,25 @@ static class HandAxes {
         left = "-" + a; right = "+" + a; flip = false;
         if (side == null) return false;
         bool r = side == "r";
+        if (IsThumbTip(joint) && axis == 1) { left = "IN"; right = "OUT"; flip = !r; return true; }
+        if (IsThumbTip(joint) && axis == 2) { left = "LEFT"; right = "RIGHT"; flip = true; return true; }
         if (axis == 0) { left = "TURN L"; right = "TURN R"; flip = r; }
         else if (axis == 1) { left = "LEFT"; right = "RIGHT"; flip = true; }
         else if (IsWrist(joint)) { left = "DOWN"; right = "UP"; flip = r; }
         else { left = "IN"; right = "OUT"; flip = r; }
         return true;
     }
+    // 2026-11-09 (Tefa, in the headset: "thumb's tip still is in the middle bottom slider, where's other finger tip curls inwards and
+    // outwards et the very bottom right one"): the thumb's tip joint curls on its Y axis, not Z (Tefa's poses: L_Thumb3 = 0 / 25.8 /
+    // 0), so on that joint Y and Z swap places on screen: the curl sits in the right-hand column with IN / OUT like every other
+    // finger, the sideways swing in the middle. The stored numbers keep their meaning; only where and how they are shown changes.
+    // (Left hand: +Y bends it in, so IN shows on the left end; the right hand mirrored.)
+    static bool IsThumbTip(string joint) {
+        string n = (joint ?? "").ToLowerInvariant();
+        return System.Text.RegularExpressions.Regex.IsMatch(n, @"^[lr]_(?:hand_)?thumbf?_?3$");
+    }
+    // the screen column (0 left, 1 middle, 2 right) that shows this axis of this joint
+    public static int Column(string joint, int axis) { return IsThumbTip(joint) && axis > 0 ? 3 - axis : axis; }
     public static bool Flip(string joint, int axis) { string l, r; bool f; Ends(joint, axis, out l, out r, out f); return f; }
     public static double Sign(string joint, int axis) { return Flip(joint, axis) ? -1.0 : 1.0; }
 }
