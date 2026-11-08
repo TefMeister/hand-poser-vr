@@ -20,11 +20,18 @@ class DockBox : SkinPanel {
     public const int OPEN_H = 190, SHUT_H = 34;
     static readonly Color Ink = Color.FromArgb(232, 232, 236), Dim = Color.FromArgb(150, 155, 170), Panel2 = Color.FromArgb(38, 41, 52);
 
-    class Axis { public string Key, Words, Unit; public double Range; public FancySlider Bar; public Label Value; public CheckBox Tick; }
+    // 2026-11-08 (Tefa: left end = down / in / left / turn left, right end = up / out / right / turn right): measured in Village
+    // (visceral-re8-vr tools/sim/zz_test_axes.lua, the LEMI and the F2), the gun's own +x points LEFT, not right, so + on x went
+    // left, + on rx tilted the fingers DOWN and + on ry turned LEFT. Those three show their number turned round (Flip); the file
+    // keeps its numbers and their meaning. Words: the left end's first.
+    class Axis { public string Key, Words, Unit, L, R; public double Range; public bool Flip; public FancySlider Bar; public Label Value; public CheckBox Tick; }
     readonly Axis[] axes = {
-        new Axis { Key = "z", Words = "forward / back", Unit = "cm", Range = 15 }, new Axis { Key = "rx", Words = "tilt fingers up / down", Unit = "°", Range = 180 },
-        new Axis { Key = "y", Words = "up / down", Unit = "cm", Range = 15 },      new Axis { Key = "ry", Words = "turn left / right", Unit = "°", Range = 180 },
-        new Axis { Key = "x", Words = "right / left", Unit = "cm", Range = 15 },   new Axis { Key = "rz", Words = "roll", Unit = "°", Range = 180 } };
+        new Axis { Key = "z", Words = "back / forward", L = "BACK", R = "FORWARD", Unit = "cm", Range = 15 },
+        new Axis { Key = "rx", Words = "tilt fingers down / up", L = "DOWN", R = "UP", Unit = "°", Range = 180, Flip = true },
+        new Axis { Key = "y", Words = "down / up", L = "DOWN", R = "UP", Unit = "cm", Range = 15 },
+        new Axis { Key = "ry", Words = "turn left / right", L = "LEFT", R = "RIGHT", Unit = "°", Range = 180, Flip = true },
+        new Axis { Key = "x", Words = "left / right", L = "LEFT", R = "RIGHT", Unit = "cm", Range = 15, Flip = true },
+        new Axis { Key = "rz", Words = "roll left / right", L = "LEFT", R = "RIGHT", Unit = "°", Range = 180 } };
     readonly PoserUi ui;
     readonly Button fold;
     readonly Label where;
@@ -48,7 +55,7 @@ class DockBox : SkinPanel {
         Controls.Add(fold); Controls.Add(where);
         foreach (var a in axes) {
             var ax = a;
-            ax.Bar = new FancySlider { Minimum = (int)(-a.Range * STEPS), Maximum = (int)(a.Range * STEPS), SmallChange = 5, LargeChange = 50, Height = 30, Signed = true };
+            ax.Bar = new FancySlider { Minimum = (int)(-a.Range * STEPS), Maximum = (int)(a.Range * STEPS), SmallChange = 5, LargeChange = 50, Height = 30, Signed = true, LeftText = a.L, RightText = a.R };
             ax.Bar.Scroll += (o, e) => { ShowValue(ax); if (!syncing) { saveTimer.Stop(); saveTimer.Start(); } };
             ax.Value = new SkinLabel { AutoSize = true, ForeColor = Ink };
             string key = "dock:" + a.Key;
@@ -168,6 +175,7 @@ class DockBox : SkinPanel {
                 object v;
                 double n = mine.TryGetValue(a.Key, out v) ? Json.Num(v, 0) : 0;
                 if (a.Unit == "cm") n *= CM_PER_M;
+                if (a.Flip) n = -n;
                 a.Bar.Value = (int)Math.Round(n * STEPS);
                 ShowValue(a);
             }
@@ -196,6 +204,7 @@ class DockBox : SkinPanel {
         var mine = Child(Child(all, gun.ToString()), spot.ToString());
         foreach (var a in axes) {
             double n = a.Bar.Value / (double)STEPS;
+            if (a.Flip) n = -n;
             mine[a.Key] = a.Unit == "cm" ? Math.Round(n / CM_PER_M, 4) : Math.Round(n, 2);
         }
         try { Directory.CreateDirectory(DataDir); File.WriteAllText(PosesPath, Json.Write(all)); }

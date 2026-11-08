@@ -45,6 +45,21 @@ static class SelfTest {
         string cmd = model.Command();
         var c = Json.Obj(Json.Parse(cmd));
         Check("command asks to read 3, holds none", Json.Arr(c["want_read"]).Count == 3 && Json.Obj(c["hold"]).Count == 0 && Json.Num(c["seq"], 0) == 1);
+        {   // 2026-11-08: the measured slider directions (HandAxes.cs)
+            string l, r; bool f;
+            HandAxes.Ends("R_IndexF1", 2, out l, out r, out f);
+            bool rightBend = l == "IN" && r == "OUT" && f;
+            HandAxes.Ends("L_IndexF1", 2, out l, out r, out f);
+            bool leftBend = l == "IN" && r == "OUT" && !f;
+            HandAxes.Ends("L_Hand", 2, out l, out r, out f);
+            bool wrist = l == "DOWN" && r == "UP" && !f;
+            HandAxes.Ends("L_Thumb3", 1, out l, out r, out f);
+            bool side = l == "LEFT" && f;
+            HandAxes.Ends("L_Forearm", 0, out l, out r, out f);
+            bool other = l == "-X" && r == "+X" && !f;
+            Check("slider ends: right fingers' bend shown turned round, left not; the wrist DOWN / UP; sideways LEFT / RIGHT; an arm joint plain",
+                  rightBend && leftBend && wrist && side && other);
+        }
         Check("plain names: R_IndexF1 is the right index knuckle, l_hand_thumb_2 the left thumb tip, L_Hand the left wrist",
               JointNames.Describe("R_IndexF1") == "right index finger: knuckle (base)" && JointNames.Describe("l_hand_thumb_2") == "left thumb: tip joint" &&
               JointNames.Describe("L_Hand") == "left wrist (turns the whole hand)" && JointNames.Describe("L_PinkyF3") == "left pinky finger: tip joint");

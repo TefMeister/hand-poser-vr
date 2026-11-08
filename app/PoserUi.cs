@@ -255,9 +255,10 @@ class PoserUi : Form {
         }
         foreach (var r in model.Rows) {
             if (!r.Known) continue;
-            if (targets.Contains(r.Name + ":X")) r.X = PoseModel.Clamp(r.X + step);
-            if (targets.Contains(r.Name + ":Y")) r.Y = PoseModel.Clamp(r.Y + step);
-            if (targets.Contains(r.Name + ":Z")) r.Z = PoseModel.Clamp(r.Z + step);
+            // X / Y move toward the slider's left end, A / B toward its right end (HandAxes.cs, 2026-11-08)
+            if (targets.Contains(r.Name + ":X")) r.X = PoseModel.Clamp(r.X + step * HandAxes.Sign(r.Name, 0));
+            if (targets.Contains(r.Name + ":Y")) r.Y = PoseModel.Clamp(r.Y + step * HandAxes.Sign(r.Name, 1));
+            if (targets.Contains(r.Name + ":Z")) r.Z = PoseModel.Clamp(r.Z + step * HandAxes.Sign(r.Name, 2));
             if (targets.Contains(r.Name + ":X") || targets.Contains(r.Name + ":Y") || targets.Contains(r.Name + ":Z")) r.Moved = true;
         }
         foreach (var row in rows) row.PullFromModel();
@@ -564,7 +565,8 @@ class PoserUi : Form {
             axis = ui.Btn("axis " + ui.GroupAxis(group), (s, e) => NextAxis(), 64);
             axis.Height = 26;
             value = new SkinLabel { AutoSize = true, ForeColor = Dim, Location = new Point(0, 11) };
-            bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 34, Signed = true, LeftText = "IN", RightText = "OUT" };
+            bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 34, Signed = true };
+            BarWords();
             bend.Pressed += () => { ui.GroupPressed(); bases = members.Select(r => Axis(r)).ToArray(); };
             bend.Scroll += (o, e) => Apply();
             bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
@@ -588,7 +590,16 @@ class PoserUi : Form {
             string a = AxisName(), next = a == "X" ? "Y" : a == "Y" ? "Z" : "X";
             ui.SetGroupAxis(group, next);
             axis.Text = "axis " + next;
+            BarWords();
             ui.BendAxisChanged(group, next);
+        }
+        int AxisIndex() { return "XYZ".IndexOf(AxisName()); }
+        // 2026-11-08: the bar's ends say what its axis does on this finger (HandAxes.cs: Z bends IN / OUT, Y LEFT / RIGHT, X turns)
+        void BarWords() {
+            string l, r; bool f;
+            HandAxes.Ends(members.Count > 0 ? members[0].Name : "", Math.Max(0, AxisIndex()), out l, out r, out f);
+            if (l.StartsWith("-")) { l = "IN"; r = "OUT"; }
+            bend.LeftText = l; bend.RightText = r; bend.Invalidate();
         }
         void Apply() {
             if (bases == null) return;
@@ -596,7 +607,7 @@ class PoserUi : Form {
             string a = AxisName();
             for (int i = 0; i < members.Count; i++) {
                 var r = members[i];
-                double v = PoseModel.Clamp(bases[i] + d);
+                double v = PoseModel.Clamp(bases[i] + d * HandAxes.Sign(r.Name, AxisIndex()));   // the bar's right end is the joint's right end
                 if (a == "X") r.X = v; else if (a == "Y") r.Y = v; else r.Z = v;
                 r.Known = true; r.Moved = true;
             }
@@ -698,20 +709,23 @@ class PoserUi : Form {
             PullFromModel();
         }
 
-        // the finger's bend axis says IN (left) / OUT (right); the other two their axis letter at each end
+        // 2026-11-08 (Tefa: left end = in / left / turn left, right end = out / right / turn right, on every slider): each axis
+        // says what it does on this joint, measured in the game (HandAxes.cs), and shows its number turned round where + would
+        // sit on the wrong end. The stored angles keep their meaning. (Was: IN / OUT on the finger's bend axis, -X / +X on the rest.)
         public void SetBendAxis(string axis) {
             for (int i = 0; i < 3; i++) {
-                string a = "XYZ"[i].ToString();
-                if (axis != null && a == axis) { sliders[i].LeftText = "IN"; sliders[i].RightText = "OUT"; }
-                else if (axis != null) { sliders[i].LeftText = "-" + a; sliders[i].RightText = "+" + a; }
+                string l, r; bool f;
+                HandAxes.Ends(Model.Name, i, out l, out r, out f);
+                sliders[i].LeftText = l; sliders[i].RightText = r;
                 sliders[i].Invalidate();
             }
         }
+        double Sign(int axis) { return HandAxes.Sign(Model.Name, axis); }
 
         void Push() {
-            Model.X = sliders[0].Value / (double)SLIDER_STEPS_PER_DEG;
-            Model.Y = sliders[1].Value / (double)SLIDER_STEPS_PER_DEG;
-            Model.Z = sliders[2].Value / (double)SLIDER_STEPS_PER_DEG;
+            Model.X = Sign(0) * sliders[0].Value / (double)SLIDER_STEPS_PER_DEG;
+            Model.Y = Sign(1) * sliders[1].Value / (double)SLIDER_STEPS_PER_DEG;
+            Model.Z = Sign(2) * sliders[2].Value / (double)SLIDER_STEPS_PER_DEG;
             Model.Known = true; Model.Moved = true;
         }
 
@@ -719,9 +733,9 @@ class PoserUi : Form {
             ui.syncing = true;
             foreach (var s in sliders) s.Enabled = Model.Known;
             if (Model.Known) {
-                sliders[0].Value = Clamp((int)Math.Round(Model.X * SLIDER_STEPS_PER_DEG));
-                sliders[1].Value = Clamp((int)Math.Round(Model.Y * SLIDER_STEPS_PER_DEG));
-                sliders[2].Value = Clamp((int)Math.Round(Model.Z * SLIDER_STEPS_PER_DEG));
+                sliders[0].Value = Clamp((int)Math.Round(Sign(0) * Model.X * SLIDER_STEPS_PER_DEG));
+                sliders[1].Value = Clamp((int)Math.Round(Sign(1) * Model.Y * SLIDER_STEPS_PER_DEG));
+                sliders[2].Value = Clamp((int)Math.Round(Sign(2) * Model.Z * SLIDER_STEPS_PER_DEG));
             }
             ui.syncing = false;
             ShowValues();
