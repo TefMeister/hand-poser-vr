@@ -91,7 +91,10 @@ class DockBox : SkinPanel {
     void ShowValue(Axis a) { a.Value.Text = string.Format("{0:+0.0;-0.0;0.0} {1}", a.Bar.Value / (double)STEPS, a.Unit); }
 
     // the spots the plugin docks the left hand on (visceral-re8-vr src/dockpose.h)
-    static bool Docked(int s) { return (s >= 3 && s <= 10) || s == 101 || s == 102 || (s >= 1000 && s < 2000); }
+    // (2026-11-08: 11 / 12 the slide at the back, 13 a magazine in the left hand, 104 the right hand on the bolt at the back)
+    static bool Docked(int s) { return (s >= 3 && s <= 13) || s == 101 || s == 102 || s == 104 || (s >= 1000 && s < 2000); }
+    // an "at the back" spot with nothing saved starts from the spot it came from (the plugin falls back the same way)
+    static int BaseSpot(int s) { return s == 11 ? 3 : s == 12 ? 8 : s == 104 ? 102 : -1; }
     static string SpotName(int s) {
         switch (s) {
         case 3: return "the slide / pump / bolt";
@@ -102,6 +105,10 @@ class DockBox : SkinPanel {
         case 8: return "the slide, from the left";
         case 9: return "rounds from the pouch";
         case 10: return "the hammer";   // 2026-11-02: the Wolfsbane, the left palm on it
+        case 11: return "the slide / pump / bolt, at the back";   // 2026-11-08
+        case 12: return "the slide from the left, at the back";
+        case 13: return "a magazine in the hand";
+        case 104: return "the bolt at the back (right hand)";
         case 101: return "the cover (right hand)";
         case 102: return "the bolt (right hand)";
         default: return s >= 1000 && s < 2000 ? "pair " + (s - 1000) + "'s landing spot" : "nothing";
@@ -153,7 +160,9 @@ class DockBox : SkinPanel {
         string key = gun + ":" + spot;
         if (docked && key != loadedKey && !saveTimer.Enabled) {   // a new spot: its own numbers
             loadedKey = key;
-            var mine = Child(Child(LoadPoses(), gun.ToString()), spot.ToString());
+            var guns = Child(LoadPoses(), gun.ToString());
+            var mine = Child(guns, spot.ToString());
+            if (mine.Count == 0 && BaseSpot(spot) > 0) mine = Child(guns, BaseSpot(spot).ToString());   // 2026-11-08: start from where it came from
             syncing = true;
             foreach (var a in axes) {
                 object v;

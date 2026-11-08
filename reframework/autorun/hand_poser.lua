@@ -188,6 +188,7 @@ local function read_command()
     local cmd = json.load_file(COMMAND_FILE)
     if type(cmd) ~= "table" or cmd.seq == nil or cmd.seq == last_seq then return end
     last_seq = cmd.seq
+    spot_unposed = false   -- the app is holding a pose: tuning wins (2026-11-08)
     held = {}
     for name, v in pairs(cmd.hold or {}) do
         if type(v) == "table" and #v == 3 then
@@ -280,20 +281,42 @@ local function current_spot()
     if v == 8 then return "slide from the left" end   -- 2026-10-28: a pistol's slide taken from the gun hand's left (Visceral RE8)
     if v == 9 then return "rounds from the pouch" end   -- 2026-10-28: rounds held in the left hand (Visceral RE8)
     if v == 10 then return "hammer" end   -- 2026-11-02: the Wolfsbane's hammer, the left palm on it (Visceral RE8)
+    -- 2026-11-08 (Tefa: "a point on the guns when something happens, then the hand pose changes"): Visceral RE8's stage spots
+    if v == 11 then return "slide at the back" end   -- the slide / pump / bolt from its click at the back until it is home
+    if v == 12 then return "slide from the left at the back" end
+    if v == 13 then return "magazine in hand" end   -- a magazine carried in the left hand (after B / LT, or from the pouch)
     return ""
 end
 -- 2026-11-02 (Tefa: "same with the right hand when it docks on the gun to insert bullets"): Visceral RE8's slot 184, the right
 -- hand's spot; it joins the left's in the spot name, so a pose is kept for each pair of places
 local RIGHT_SPOT_SLOT = 184
+-- 2026-11-08 (Tefa, the Village ideas list: "the trigger finger follows RT"): Visceral RE8's slot 5 = the right trigger pressed.
+-- Held this long with a gun out and the right hand nowhere else, the right hand's spot is "trigger pulled", so the window keeps a
+-- pose for it (pose the right index finger there); in play that pose's right index finger is eased in on every RT press (below).
+local RT_SLOT, TRIGGER_POSE_HOLD_SEC = 5, 1.0
+local rt_since = nil
+local function rt_held()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return false end
+    local ok, v = pcall(b.r, RT_SLOT)
+    return ok and type(v) == "number" and v > 0.5
+end
 local function right_spot()
     local b = rawget(_G, "visceral_re8_bridge")
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
     local ok, v = pcall(b.r, RIGHT_SPOT_SLOT)
     if not ok or type(v) ~= "number" then return "" end
     v = math.floor(v + 0.5)
+    if v == 0 and gun_now ~= "" and rt_held() then
+        rt_since = rt_since or now()
+        if now() - rt_since >= TRIGGER_POSE_HOLD_SEC then return "trigger pulled" end
+        return ""
+    end
+    rt_since = nil
     if v == 1 then return "right hand on the cover" end
     if v == 2 then return "right hand on the bolt" end
     if v == 3 then return "right hand over the hammer" end   -- 2026-11-06: the Wolfsbane's right hand lifted over the hammer, the cover open (Visceral RE8 b075)
+    if v == 4 then return "right hand on the bolt at the back" end   -- 2026-11-08: from the bolt's click at the back until it is home
     return ""
 end
 
@@ -304,13 +327,20 @@ end
 -- app open its command follows a moment later with the same pose and wins, so tuning works as before.
 local GUNS_DIR = DIR .. "guns/"
 local own_key, own_loads = nil, 0
+-- 2026-11-08: a spot where the hand is NOT on the gun's grip; with no pose saved for it the left hand is let go (the game's open /
+-- close works on it, as before the spot existed) instead of keeping the pose in hand. The app's own commands still hold it (tuning).
+local FREE_UNLESS_POSED = { ["magazine in hand"] = true }
+local spot_unposed = false
 local function safe_name(n) return (n:gsub('[<>:"/\\|%?%*]', "_"):gsub("^%s+", ""):gsub("%s+$", "")) end
 local function load_own_pose()
     local key = (gun_now == "" and "no gun" or gun_now) .. (spot_now ~= "" and (" @ " .. spot_now) or "")
     if key == own_key then return end
     own_key = key
+    if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
-    if not ok or type(d) ~= "table" or type(d.joints) ~= "table" then return end   -- none kept: the pose in hand stays
+    local found = ok and type(d) == "table" and type(d.joints) == "table"
+    spot_unposed = (not found) and FREE_UNLESS_POSED[spot_now] == true
+    if not found then return end   -- none kept: the pose in hand stays
     held = {}
     for name, v in pairs(d.joints) do
         if type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
@@ -365,10 +395,64 @@ local function hands_on_gun()
     local ok1, sp = pcall(b.r, SPOT_SLOT)
     local ok2, g = pcall(b.r, 36)
     local left = (ok1 and type(sp) == "number" and sp > 0.5) or (ok2 and type(g) == "number" and g > 0.5)
+    if spot_unposed then left = false end   -- 2026-11-08: a magazine in hand with no pose of its own: the hand is free
     return left, gun_now ~= ""
 end
 
-local function apply()
+-- 2026-11-08: the trigger finger. The gun's "trigger pulled" pose (data/hand_poser/guns/<gun> @ trigger pulled.json, kept by the
+-- window) gives the right index finger's pulled angles; on every RT press it eases from where it is (our held pose, or the game's
+-- own grip) to them, and back on release. Visceral RE8 reports RT as pressed / not pressed only, so the finger eases over
+-- TRIGGER_EASE_SEC rather than following the trigger's travel. A gun with no such pose: nothing changes.
+local TRIGGER_EASE_SEC, PULLED_CHECK_SEC = 0.06, 2.0
+local pulled, pulled_gun, pulled_t, trig_k, trig_t = {}, nil, -100, 0.0, nil
+local trig_base = {}   -- joint name -> Vector3f, the finger as it was when the press began (its blend's start)
+local function is_trigger_finger(name) return name:sub(1, 2):lower() == "r_" and name:lower():find("index", 1, true) ~= nil end
+local function load_pulled()
+    if gun_now == pulled_gun and now() - pulled_t < PULLED_CHECK_SEC then return end
+    pulled_gun, pulled_t, pulled = gun_now, now(), {}
+    if gun_now == "" then return end
+    local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(gun_now .. " @ trigger pulled") .. ".json")
+    if not ok or type(d) ~= "table" or type(d.joints) ~= "table" then return end
+    for name, v in pairs(d.joints) do
+        if is_trigger_finger(name) and type(v) == "table" and #v == 3 then pulled[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+    end
+end
+local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
+local function pulled_frame(first_pass, right_on)
+    local t = now()
+    local dt = trig_t and math.min(0.1, t - trig_t) or 0.0
+    local was = trig_k
+    if first_pass then
+        trig_t = t
+        pcall(load_pulled)
+        local want = (right_on and rt_held()) and 1.0 or 0.0
+        local step = dt / TRIGGER_EASE_SEC
+        if trig_k < want then trig_k = math.min(want, trig_k + step) else trig_k = math.max(want, trig_k - step) end
+    end
+    if not target or next(pulled) == nil then trig_base = {}; return end
+    -- the finger's start is read once, as a press begins (the game's own angle, or our held one), so a game that leaves the
+    -- joint alone between frames cannot make the blend creep; on the way back it is written exactly once more, then let go
+    if first_pass and was <= 0.0 and trig_k > 0.0 then
+        trig_base = {}
+        for name, _ in pairs(pulled) do
+            local j = target.by_name[name]
+            local ok, e = j and pcall(function() return j:call("get_LocalEulerAngle") end)
+            if ok and e then trig_base[name] = held[name] or e end
+        end
+    end
+    if trig_k <= 0.0 and next(trig_base) == nil then return end
+    for name, p in pairs(pulled) do
+        local j, b = target.by_name[name], trig_base[name]
+        if j and b then
+            local k = right_on and trig_k or 0.0
+            local v = Vector3f.new(b.x + wrap(p.x - b.x) * k, b.y + wrap(p.y - b.y) * k, b.z + wrap(p.z - b.z) * k)
+            pcall(function() j:call("set_LocalEulerAngle", v) end)
+        end
+    end
+    if trig_k <= 0.0 and not first_pass then trig_base = {} end   -- home again (both passes written): let the finger go
+end
+
+local function apply(first_pass)
     -- 2026-10-25: how many joints this script holds, for other mods that pose the same joints (Visceral RE8's open hand
     -- stands down while a finger is held here). 2026-11-01: the LEFT hand's joints actually held (that open hand is the left's)
     local left_on, right_on = hands_on_gun()
@@ -382,7 +466,7 @@ local function apply()
         if c >= 2 then right_on = false end
     end
     local nl, n = 0, 0
-    if not target or next(held) == nil then _G.hand_poser_held = 0; _G.hand_poser_held_all = 0; return end
+    if not target or next(held) == nil then _G.hand_poser_held = 0; _G.hand_poser_held_all = 0; pulled_frame(first_pass, right_on); return end
     for name, v in pairs(held) do
         local side = name:sub(1, 2):lower()
         if (side ~= "l_" or left_on) and (side ~= "r_" or right_on) then
@@ -397,6 +481,7 @@ local function apply()
     end
     _G.hand_poser_held = nl
     _G.hand_poser_held_all = n
+    pulled_frame(first_pass, right_on)   -- 2026-11-08: after the held pose, so the trigger finger blends from it
 end
 
 re.on_frame(function()
@@ -429,8 +514,8 @@ re.on_frame(function()
     end
 end)
 
-re.on_application_entry("LateUpdateBehavior", apply)
-re.on_application_entry("PrepareRendering", apply)
+re.on_application_entry("LateUpdateBehavior", function() apply(true) end)
+re.on_application_entry("PrepareRendering", function() apply(false) end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Hand Poser") then
