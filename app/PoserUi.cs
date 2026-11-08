@@ -331,7 +331,10 @@ class PoserUi : Form {
         if (perSpot && !string.IsNullOrEmpty(model.Spot)) g += " @ " + model.Spot;   // a spot keeps its own pose too
         if (poseGun == g) { model.GunPoseFile = model.GunFile(g); return; }
         string file = model.GunFile(g);
-        if (File.Exists(file)) {   // this gun has its own pose: it comes back (the previous gun's is already saved)
+        // 2026-11-09 (Tefa: at the end of the slide rack the fingers open): a pose file with no joints in it (a spot made but never
+        // posed, "slide from the left at the back") loaded as a pose of nothing and let the fingers go. It counts as never posed now
+        if (File.Exists(file) && !HasJoints(file)) { }
+        else if (File.Exists(file)) {   // this gun has its own pose: it comes back (the previous gun's is already saved)
             model.Mark();
             if (model.LoadFile(file)) { poseGun = g; model.GunPoseFile = file; AfterModelChange(); return; }
         }
@@ -339,6 +342,13 @@ class PoserUi : Form {
         model.GunPoseFile = file;
         try { model.Autosave(); } catch (IOException) { }
         UpdateStatus();
+    }
+    static bool HasJoints(string file) {
+        try {
+            var o = Json.Obj(Json.Parse(File.ReadAllText(file)));
+            object j;
+            return o != null && o.TryGetValue("joints", out j) && Json.Obj(j) != null && Json.Obj(j).Count > 0;
+        } catch (Exception) { return true; }   // unreadable: let LoadFile say so, as before
     }
     static string GunWords(string g) { return g == "" ? "no gun" : g.Replace("_Inventory", ""); }
 
