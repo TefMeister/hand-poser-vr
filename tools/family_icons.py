@@ -145,10 +145,33 @@ def gun_poser():
     return edge(im)
 
 
+def anim_timing():
+    # Tefa 2026-11-08: keep "a clock inside a reel", on the family tile, the clock round with no yellow outside its face
+    im = tile(); d = ImageDraw.Draw(im)
+    STRIP, RIM, HOLE, FRAME = (56, 60, 78, 255), (120, 130, 160, 255), (22, 24, 32, 255), (84, 90, 116, 255)
+    FACE, HAND = (240, 170, 70, 255), (28, 30, 38, 255)
+    d.rounded_rectangle(R(20, 58, 236, 198), radius=18 * K, fill=STRIP, outline=RIM, width=int(6 * K))   # the film strip
+    for k in range(6):                                                    # the holes along both edges
+        x = 34 + k * 33
+        d.rounded_rectangle(R(x, 68, x + 18, 80), radius=3 * K, fill=HOLE)
+        d.rounded_rectangle(R(x, 176, x + 18, 188), radius=3 * K, fill=HOLE)
+    d.rectangle(R(32, 92, 78, 164), fill=FRAME)                           # the frames either side of the clock
+    d.rectangle(R(178, 92, 224, 164), fill=FRAME)
+    c, r = 128, 46
+    d.ellipse(R(c - r, c - r, c + r, c + r), fill=FACE)                   # the clock: one round face, nothing square behind it
+    for a in range(0, 360, 90):                                            # four hour marks
+        t = math.radians(a)
+        d.line(R(c + 32 * math.cos(t), c + 32 * math.sin(t), c + 40 * math.cos(t), c + 40 * math.sin(t)), fill=HAND, width=int(6 * K))
+    d.line(R(c, c, c, c - 30), fill=HAND, width=int(9 * K))               # the long hand, up
+    d.line(R(c, c, c + 20, c + 12), fill=HAND, width=int(9 * K))          # the short hand, to four
+    d.ellipse(R(c - 8, c - 8, c + 8, c + 8), fill=HAND)
+    return edge(im)
+
+
 def main(out):
     os.makedirs(out, exist_ok=True)
     made = {"hand_poser": hand_poser(), "grab_zones": grab_zones(), "window_view": window_view(), "hand_freeze": hand_freeze(),
-            "gun_poser": gun_poser()}
+            "gun_poser": gun_poser(), "anim_timing": anim_timing()}
     sheet = Image.new("RGBA", (len(made) * 266, 256 + 74), (30, 30, 30, 255))
     for i, (name, im) in enumerate(made.items()):
         small = im.resize((256, 256), Image.LANCZOS)
