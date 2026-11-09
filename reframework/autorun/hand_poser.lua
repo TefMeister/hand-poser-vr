@@ -645,7 +645,9 @@ local SWAY_PHASE = { L_Index = 0.0, L_Middle = 1.1, L_Ring = 2.3, L_Pinky = 3.1 
 local shown, blend_t = {}, nil
 local function wrap_rad(a) while a > math.pi do a = a - 2 * math.pi end while a < -math.pi do a = a + 2 * math.pi end return a end
 local function sway_of(name)
-    if not is_ready(spot_left_now) then return 0.0 end   -- 2026-11-09: every ready spot ("ready at <area>" too), not only the plain one
+    -- 2026-11-09: every ready spot ("ready at <area>" too), and (Tefa: "left hand on it's own is not subtly animating, that needs to
+    -- come back") the free hand: since Village b105 a hand on its own outside a named zone is "free". Never docked, holding or guard
+    if not (is_ready(spot_left_now) or spot_left_now == "free") then return 0.0 end
     local f = name:match("^(L_%a+)F[12]$")
     local ph = f and SWAY_PHASE[f]
     if not ph then return 0.0 end

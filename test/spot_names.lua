@@ -102,3 +102,16 @@ print("19 guard pose    -> " .. last_log)
 -- 20. the block let go: back to the zones
 re8vr_fields.wants_block = false; run(20)
 print("20 block off     -> " .. spot())
+-- 21. the gentle finger sway (Tefa: "left hand on it's own is not subtly animating"): on a free or ready left hand, never docked
+-- or at the guard. Reached through the script's own apply(), so the check runs the real function.
+local function upv(f, want) local i = 1 while true do local n, v = debug.getupvalue(f, i) if not n then return nil end if n == want then return v end i = i + 1 end end
+local sway = upv(upv(entries["LateUpdateBehavior"], "apply"), "sway_of")
+local function sways() return math.abs(sway("L_IndexF1")) > 1e-6 end
+local out = {}
+slots[214], slots[215], slots[216], slots[213] = 0, 0, 0, 0
+slots[153] = 15; run(20); out[#out + 1] = "free " .. tostring(sways())
+slots[153] = 14; slots[213] = 12; run(20); out[#out + 1] = "ready " .. tostring(sways())
+slots[153] = 3; slots[3] = 1; run(20); out[#out + 1] = "docked " .. tostring(sways())
+slots[3] = 0; re8vr_fields.wants_block = true; run(20); out[#out + 1] = "guard " .. tostring(sways())
+re8vr_fields.wants_block = false
+print("21 sway          -> " .. table.concat(out, ", "))

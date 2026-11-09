@@ -18,3 +18,4 @@
 18 guard, no gun -> 'any gun @ guard' used: false
 19 guard pose    -> [hand_poser] own pose loaded: no gun @ guard
 20 block off     -> ready at slide + right hand ready at slide
+21 sway          -> free true, ready true, docked false, guard false
