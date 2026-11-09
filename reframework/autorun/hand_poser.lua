@@ -313,8 +313,12 @@ local function is_right_ready(sp) return sp:sub(1, 17) == "right hand ready " en
 -- every zone and holster.
 local GUARD = "guard"
 local function guard_on()
+    -- re8vr is praydog's C++ object in Village (a userdata, not a table): read the field through pcall, never by its type
+    -- (5e24843 asked for a table, so the guard never came on in the game)
     local v = rawget(_G, "re8vr")
-    return type(v) == "table" and v.wants_block == true
+    if v == nil then return false end
+    local ok, w = pcall(function() return v.wants_block end)
+    return ok and w == true
 end
 local function current_spot()
     local b = rawget(_G, "visceral_re8_bridge")

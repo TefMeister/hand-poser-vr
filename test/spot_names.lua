@@ -23,6 +23,13 @@ local fake_t = 0; os.clock = function() return fake_t end
 local slots = {}
 _G.visceral_re8_bridge = { r = function(s) if slots[s] == nil then error("slot " .. s .. " out of range") end return slots[s] end }
 
+-- Village's re8vr is praydog's C++ object, a USERDATA: the pretend one says so to type(), so a check that wants a table fails
+-- here as it does in the game (5e24843's guard passed this test with a plain table and never came on in the game)
+local raw_type = type
+local fake_userdata = setmetatable({}, { __mode = "k" })
+type = function(x) if fake_userdata[x] then return "userdata" end return raw_type(x) end
+local function pretend_re8vr(fields) local o = setmetatable({}, { __index = fields }); fake_userdata[o] = true; return o end
+
 local chunk = assert(loadfile(script))
 chunk()
 assert(frame_cb, "no on_frame registered")
@@ -85,13 +92,13 @@ print("15 per-hand load -> " .. last_log)
 slots[214], slots[215], slots[216] = nil, nil, nil; slots[153] = 15; run(20)
 print("16 no 214-216    -> " .. spot())
 -- 17. the block held (praydog's re8vr.wants_block): both hands "guard", over a zone and a holster
-slots[214], slots[215], slots[216] = 2, 4, 12; slots[153], slots[213] = 14, 12; _G.re8vr = { wants_block = true }; run(20)
+slots[214], slots[215], slots[216] = 2, 4, 12; slots[153], slots[213] = 14, 12; local re8vr_fields = { wants_block = true }; _G.re8vr = pretend_re8vr(re8vr_fields); run(20)
 print("17 guard         -> " .. spot())
 -- 18. a guard pose kept for every gun is used with a gun in hand; with no gun only "no gun @ guard" counts
-kept("any gun @ guard", { L_Hand = { 1, 1, 1 }, R_Hand = { 2, 2, 2 } }); _G.re8vr.wants_block = false; run(20); _G.re8vr.wants_block = true; run(60)
+kept("any gun @ guard", { L_Hand = { 1, 1, 1 }, R_Hand = { 2, 2, 2 } }); re8vr_fields.wants_block = false; run(20); re8vr_fields.wants_block = true; run(60)
 print("18 guard, no gun -> 'any gun @ guard' used: " .. tostring(last_log:find("guard", 1, true) ~= nil))
-kept("no gun @ guard", { L_Hand = { 3, 3, 3 }, R_Hand = { 4, 4, 4 } }); _G.re8vr.wants_block = false; run(20); _G.re8vr.wants_block = true; run(60)
+kept("no gun @ guard", { L_Hand = { 3, 3, 3 }, R_Hand = { 4, 4, 4 } }); re8vr_fields.wants_block = false; run(20); re8vr_fields.wants_block = true; run(60)
 print("19 guard pose    -> " .. last_log)
 -- 20. the block let go: back to the zones
-_G.re8vr.wants_block = false; run(20)
+re8vr_fields.wants_block = false; run(20)
 print("20 block off     -> " .. spot())
