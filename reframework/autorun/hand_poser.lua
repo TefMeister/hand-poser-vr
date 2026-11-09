@@ -253,6 +253,7 @@ end
 -- "" = nowhere in particular (or no Visceral bridge): the gun's own pose. Pair names come from visceral_re8\pairs.json.
 local SPOT_SLOT = 153
 local spot_now, spot_checked_frame, pair_names, pair_names_t = "", -100, {}, -100
+local spot_left_now, spot_right_now = "", ""   -- 2026-11-09: which hand the spot belongs to (each part of spot_now)
 local function pair_name(n)
     if now() - pair_names_t > 2.0 then
         pair_names_t = now()
@@ -345,8 +346,26 @@ local function load_own_pose()
     spot_unposed = (not found) and FREE_UNLESS_POSED[spot_now] == true
     if not found then return end   -- none kept: the pose in hand stays
     held = {}
+    -- 2026-11-09 (Tefa: "when i put my hand on the grip ... right hand goes into a relaxed pose again"): a spot's pose holds only the
+    -- hand that is at the spot (the magazine, the slide: the left), and loading it dropped the other hand's joints that the gun's own
+    -- pose holds. The gun's own pose goes in first now, the spot's on top: each hand keeps its pose unless the spot has its own
+    if spot_now ~= "" then
+        local okb, base = pcall(json.load_file, GUNS_DIR .. safe_name(gun_now == "" and "no gun" or gun_now) .. ".json")
+        if okb and type(base) == "table" and type(base.joints) == "table" then
+            for name, v in pairs(base.joints) do
+                if type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+            end
+        end
+    end
+    -- the spot's file sets only the hand(s) at the spot; the other hand keeps the gun's own pose (an older spot file that also saved
+    -- the other hand's joints no longer overrides the gun's grip)
+    local own_l, own_r = spot_left_now ~= "", spot_right_now ~= ""
+    if spot_now == "" then own_l, own_r = true, true end
     for name, v in pairs(d.joints) do
-        if type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+        local ln = name:lower()
+        local is_r, is_l = ln:sub(1, 2) == "r_", ln:sub(1, 2) == "l_"
+        local mine = (is_l and own_l) or (is_r and own_r) or (not is_l and not is_r)
+        if mine and type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
     end
     own_loads = own_loads + 1
     if own_loads <= 50 then log.info("[hand_poser] own pose loaded: " .. key) end
@@ -506,6 +525,7 @@ re.on_frame(function()
         spot_checked_frame = frame
         local sp = current_spot()
         local rs = right_spot()
+        spot_left_now, spot_right_now = sp, rs
         if rs ~= "" then sp = sp ~= "" and (sp .. " + " .. rs) or rs end
         if sp ~= spot_now then spot_now = sp; write_state_now = true end
     end

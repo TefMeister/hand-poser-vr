@@ -336,12 +336,36 @@ class PoserUi : Form {
         if (File.Exists(file) && !HasJoints(file)) { }
         else if (File.Exists(file)) {   // this gun has its own pose: it comes back (the previous gun's is already saved)
             model.Mark();
-            if (model.LoadFile(file)) { poseGun = g; model.GunPoseFile = file; AfterModelChange(); return; }
+            if (model.LoadFile(file)) { if (g != (model.Gun ?? "")) KeepOtherHand(model.GunFile(model.Gun ?? "")); poseGun = g; model.GunPoseFile = file; AfterModelChange(); return; }
         }
         poseGun = g;               // a gun never posed: it starts from the pose in hand, kept from now on as its own
         model.GunPoseFile = file;
         try { model.Autosave(); } catch (IOException) { }
         UpdateStatus();
+    }
+    // 2026-11-09 (Tefa: "when i put my hand on the grip ... right hand goes into a relaxed pose again"): a spot's pose (the
+    // magazine, the slide: the left hand's) held only that hand, so the right hand's grip from the gun's own pose was dropped. The
+    // hand NOT at the spot now keeps the gun's own pose: its joints are taken from the gun's file (the game script does the same)
+    void KeepOtherHand(string gunFile) {
+        string sp = model.Spot ?? "";
+        bool ownR = sp.Contains("right hand") || sp.Contains("trigger pulled");
+        bool ownL = sp != "" && !sp.StartsWith("right hand") && !sp.StartsWith("trigger pulled");
+        try {
+            if (!File.Exists(gunFile)) return;
+            var j = Json.Obj(Json.Obj(Json.Parse(File.ReadAllText(gunFile)))["joints"]);
+            if (j == null) return;
+            foreach (var kv in j) {
+                string n = kv.Key.ToLowerInvariant();
+                bool isL = n.StartsWith("l_"), isR = n.StartsWith("r_");
+                if (!((isL && !ownL) || (isR && !ownR))) continue;
+                var a = kv.Value as List<object>;
+                if (a == null || a.Count != 3) continue;
+                var r = model.Find(kv.Key);
+                if (r == null) { r = new Row { Name = kv.Key }; model.Rows.Add(r); }
+                r.X = Convert.ToDouble(a[0]); r.Y = Convert.ToDouble(a[1]); r.Z = Convert.ToDouble(a[2]);
+                r.Known = true; r.Moved = true;
+            }
+        } catch (Exception) { }
     }
     static bool HasJoints(string file) {
         try {
