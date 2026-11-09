@@ -66,6 +66,11 @@ static class SelfTest {
         Check("plain names: R_IndexF1 is the right index knuckle, l_hand_thumb_2 the left thumb tip, L_Hand the left wrist",
               JointNames.Describe("R_IndexF1") == "right index finger: knuckle (base)" && JointNames.Describe("l_hand_thumb_2") == "left thumb: tip joint" &&
               JointNames.Describe("L_Hand") == "left wrist (turns the whole hand)" && JointNames.Describe("L_PinkyF3") == "left pinky finger: tip joint");
+        Check("left hand words: the area a ready hand is in, a worked part with LT up, plain ready, free, a docked spot nothing",
+              LeftHand.Words("ready at slide from the left + right hand on the cover") == " · left hand: ready, in the slide from the left area" &&
+              LeftHand.Words("ready on magazine") == " · left hand: ready, docked on the magazine (LT closes it)" &&
+              LeftHand.Words("ready").Contains("no name yet") && LeftHand.Words("free") == " · left hand: free" &&
+              LeftHand.Words("slide") == "" && LeftHand.Words(null) == "");
         Check("finger groups: L_IndexF1 and l_hand_index_0 name their finger, a lone joint none",
               PoseModel.GroupOf("L_IndexF1") == "L_IndexF" && PoseModel.GroupOf("l_hand_index_0") == "l_hand_index" && PoseModel.GroupOf("L_Hand") == null);
         link.WriteCommand(cmd);

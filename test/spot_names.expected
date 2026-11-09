@@ -1,0 +1,9 @@
+1 area 18        -> ready at slide from the left
+2 area 0         -> ready
+3 no slot 213    -> ready
+4 slide, no ready-> slide
+5 slide, LT up   -> ready on slide
+6 slide, LT held -> slide
+7 start 3, area  -> ready at slide
+8 free           -> free
+9 specific pose  -> ready at slide from the left  (own pose loaded for it: true)

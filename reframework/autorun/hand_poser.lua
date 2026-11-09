@@ -266,6 +266,26 @@ local function pair_name(n)
     local nm = pair_names[n]
     return (nm and nm ~= "" and nm ~= ("pair " .. n)) and (" " .. nm) or ""
 end
+-- 2026-11-09 (Tefa, in the headset: "a universal open hand pose is not gonna work for all weapons ... make Hand Poser say in the
+-- info part that the left hand is now in for example left side slide activation area"): Visceral RE8 b101 writes slot 213 = WHICH
+-- area a free "ready" left hand is in. The spot is then "ready at <area>", so the window shows where the hand is and keeps a ready
+-- pose per gun per area ("<gun> @ ready at <area>" -> "<gun> @ ready" -> "any gun @ ready"). Older Village builds have no slot
+-- 213 (the read fails or gives 0): the one "ready", as before.
+local LEFT_AREA_SLOT = 213
+local AREA_NAMES = { [1] = "pouch", [10] = "magazine", [11] = "well", [12] = "slide", [14] = "front grip", [15] = "handle",
+                     [16] = "drum", [17] = "insert point", [18] = "slide from the left" }
+local function left_area()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
+    local ok, v = pcall(b.r, LEFT_AREA_SLOT)
+    if not ok or type(v) ~= "number" then return "" end
+    return AREA_NAMES[math.floor(v + 0.5)] or ""
+end
+local function ready_name()   -- the free hand's spot name: "ready at <area>", or plain "ready" in no named area
+    local a = left_area()
+    return a ~= "" and ("ready at " .. a) or "ready"
+end
+local function is_ready(sp) return sp == "ready" or sp:sub(1, 6) == "ready " end   -- "ready", "ready at <area>", "ready on <spot>"
 local function current_spot()
     local b = rawget(_G, "visceral_re8_bridge")
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
@@ -288,7 +308,7 @@ local function current_spot()
     if v == 13 then return "magazine in hand" end   -- a magazine carried in the left hand (after B / LT, or from the pouch)
     -- 2026-11-09 (Tefa: "the hand at only one pose when it is in any activation sphere ... if moved away then to the hand-open pose
     -- for when it is just not holding anything"): Visceral RE8 b099 tells where a FREE left hand is
-    if v == 14 then return "ready" end   -- free, inside an activation area (a part's zone, the seated magazine, the pouch)
+    if v == 14 then return ready_name() end   -- free, inside an activation area (a part's zone, the seated magazine, the pouch); named by slot 213
     if v == 15 then return "free" end    -- free, anywhere else
     return ""
 end
@@ -299,17 +319,20 @@ local OPEN_UNTIL_LT = { ["slide"] = true, ["slide from the left"] = true, ["maga
 local function safe_name(n) return (n:gsub('[<>:"/\\|%?%*]', "_"):gsub("^%s+", ""):gsub("%s+$", "")) end
 local READY_DIR = DIR .. "guns/"   -- (GUNS_DIR is defined further down)
 local ready_cache, ready_cache_t = {}, -100
-local function ready_kept()
+-- is a ready pose kept for the gun in hand: its own for this spot ("<gun> @ ready at <area>" / "<gun> @ ready on <spot>"), its
+-- own plain one, or the one for every gun
+local function ready_kept(specific)
     if now() - ready_cache_t > 2.0 then ready_cache, ready_cache_t = {}, now() end
     local g = gun_now == "" and "no gun" or gun_now
-    if ready_cache[g] == nil then
+    local key = g .. "|" .. (specific or "")
+    if ready_cache[key] == nil then
         local function has(n)
             local ok, d = pcall(json.load_file, READY_DIR .. safe_name(n) .. ".json")
             return ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
         end
-        ready_cache[g] = has(g .. " @ ready") or has("any gun @ ready")
+        ready_cache[key] = (specific ~= nil and has(g .. " @ " .. specific)) or has(g .. " @ ready") or has("any gun @ ready")
     end
-    return ready_cache[g]
+    return ready_cache[key]
 end
 local function lt_held()
     local b = rawget(_G, "visceral_re8_bridge")
@@ -317,10 +340,19 @@ local function lt_held()
     local ok, v = pcall(b.r, 3)   -- Visceral RE8's bridge slot 3: LT held
     return ok and type(v) == "number" and v > 0.5
 end
+-- 2026-11-09: a free hand in a start sphere takes the ready pose for the area it is in; docked on a worked part with LT up it is
+-- "ready on <spot>" (slide / slide from the left / magazine / drum / hammer), its own pose per gun per spot, falling back to the
+-- plain ready pose. The one "ready" of before is now only the fallback.
 local function effective_left(sp)
-    if sp == "" or not ready_kept() then return sp end
-    if sp:sub(1, 6) == "start " then return "ready" end   -- any activation sphere: the one ready pose
-    if OPEN_UNTIL_LT[sp] and not lt_held() then return "ready" end
+    if sp == "" then return sp end
+    if sp:sub(1, 6) == "start " then
+        local rn = ready_name()
+        return ready_kept(rn) and rn or sp
+    end
+    if OPEN_UNTIL_LT[sp] and not lt_held() then
+        local rn = "ready on " .. sp
+        return ready_kept(rn) and rn or sp
+    end
     return sp
 end
 -- 2026-11-02 (Tefa: "same with the right hand when it docks on the gun to insert bullets"): Visceral RE8's slot 184, the right
@@ -381,14 +413,19 @@ local function load_own_pose()
     if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
     local found = ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
-    if not found and ONE_FOR_ALL[spot_left_now] then
-        d = load_pose_file((gun_now == "" and "no gun" or gun_now) .. " @ " .. spot_left_now) or load_pose_file("any gun @ " .. spot_left_now)
+    if not found and (ONE_FOR_ALL[spot_left_now] or is_ready(spot_left_now)) then
+        -- most specific first: "<gun> @ ready at <area>" (or "ready on <spot>") -> "<gun> @ ready" -> "any gun @ ready"
+        local g = gun_now == "" and "no gun" or gun_now
+        local plain = is_ready(spot_left_now) and "ready" or spot_left_now
+        d = load_pose_file(g .. " @ " .. spot_left_now)
+        if d == nil and plain ~= spot_left_now then d = load_pose_file(g .. " @ " .. plain) end
+        d = d or load_pose_file("any gun @ " .. plain)
         found = d ~= nil
     end
     -- 2026-11-09 (Tefa, the LEMI: "hand pose when getting to the end of the slide rack must stay the same until LT is released"):
     -- the window keeps an EMPTY file ({"joints":{}}) for a spot never posed ("slide from the left at the back"), which loaded as a
     -- pose of nothing and let the fingers go at the click. An empty file now counts as none: the pose in hand stays
-    spot_unposed = (not found) and FREE_UNLESS_POSED[spot_now] == true
+    spot_unposed = (not found) and (FREE_UNLESS_POSED[spot_now] == true or is_ready(spot_left_now))   -- a free hand in any area too
     if not found then return end   -- none kept: the pose in hand stays
     held = {}
     -- 2026-11-09 (Tefa: "when i put my hand on the grip ... right hand goes into a relaxed pose again"): a spot's pose holds only the

@@ -41,6 +41,10 @@ The game needs [REFramework](https://github.com/praydog/REFramework) installed (
 5. With Visceral RE8 in Village, the **LEFT HAND, DOCKED** box follows where the left hand is docked on the gun (slide,
    magazine, pouch rounds, handle, a pair's landing spot) and moves and turns the wrist there, for that gun and spot only.
    It was the separate Dock Poser window until 2026-10-28.
+   A free left hand near a part of the gun is named too (2026-11-09, Village b101 and up): the top line says *left hand: ready, in
+   the slide from the left area*, and the pose kept there is that gun's for that area only (`<gun> @ ready at <area>`), falling
+   back to the gun's plain ready pose, then to `any gun @ ready`. The same for a hand docked on a part with the trigger up
+   (`<gun> @ ready on slide`). Freeze the hand with Hand Freeze while it is in the area, pose it, and it is saved under that name.
 5. Drag the sliders. X, Y and Z are the joint's local turning angles in degrees, −180 to 180; arrow keys nudge by half a
    degree, Page Up/Down by five.
 6. Type a name next to **build name** and press **SAVE BUILD** to keep the pose; pick it under **saved builds** and press
