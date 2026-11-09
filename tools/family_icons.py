@@ -3,7 +3,8 @@ background unified on all 4 apps ... as they are sort of all a part of this help
 with a blue edge, and each app's own picture on it.
 
     python tools\family_icons.py <out folder>     writes hand_poser.ico, grab_zones.ico, window_view.ico, hand_freeze.ico
-                                                   and a preview sheet family.png (256, 64, 48, 32, 16 pixels)
+                                                   and a preview sheet family.png (256, 64, 48, 32, 16 pixels); also
+                                                   anim_timing_backdrop.png, its picture with no tile, for its window background
 
 The canonical copy lives in hand-poser-vr; the icons are copied into each app's app\ folder.
 """
@@ -145,9 +146,11 @@ def gun_poser():
     return edge(im)
 
 
-def anim_timing():
+def anim_timing(on_tile=True):
     # Tefa 2026-11-08: keep "a clock inside a reel", on the family tile, the clock round with no yellow outside its face
-    im = tile(); d = ImageDraw.Draw(im)
+    # 2026-11-09 (Tefa: "animations and timings window shows 2 icons at the back"): the window background takes the picture
+    # WITHOUT the tile (on_tile=False), since the tile's edge and the film strip's rim read as two icons there
+    im = tile() if on_tile else Image.new("RGBA", (S, S), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     STRIP, RIM, HOLE, FRAME = (56, 60, 78, 255), (120, 130, 160, 255), (22, 24, 32, 255), (84, 90, 116, 255)
     FACE, HAND = (240, 170, 70, 255), (28, 30, 38, 255)
     d.rounded_rectangle(R(20, 58, 236, 198), radius=18 * K, fill=STRIP, outline=RIM, width=int(6 * K))   # the film strip
@@ -165,7 +168,7 @@ def anim_timing():
     d.line(R(c, c, c, c - 30), fill=HAND, width=int(9 * K))               # the long hand, up
     d.line(R(c, c, c + 20, c + 12), fill=HAND, width=int(9 * K))          # the short hand, to four
     d.ellipse(R(c - 8, c - 8, c + 8, c + 8), fill=HAND)
-    return edge(im)
+    return edge(im) if on_tile else im
 
 
 def main(out):
@@ -181,7 +184,8 @@ def main(out):
         for s in (64, 48, 32, 16):
             sheet.alpha_composite(im.resize((s, s), Image.LANCZOS), (x, 262)); x += s + 6
     sheet.save(os.path.join(out, "family.png"))
-    print("wrote", ", ".join(n + ".ico" for n in made), "and family.png into", out)
+    anim_timing(on_tile=False).resize((256, 256), Image.LANCZOS).save(os.path.join(out, "anim_timing_backdrop.png"))   # 2026-11-09
+    print("wrote", ", ".join(n + ".ico" for n in made), "anim_timing_backdrop.png and family.png into", out)
 
 
 if __name__ == "__main__":
