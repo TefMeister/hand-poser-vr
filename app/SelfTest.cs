@@ -81,6 +81,9 @@ static class SelfTest {
               string.Join("|", HandSpots.Fallbacks("LEMI", "at right hip holster")) == "any gun @ at right hip holster" &&
               HandSpots.Fallbacks("", "at right hip holster").Count == 0 && HandSpots.Fallbacks("LEMI", "slide").Count == 0 &&
               HandSpots.Fallbacks("LEMI", "at left hip holster + right hand at left shoulder holster").Count == 0);
+        Check("the guard: both hands named, 'any gun @ guard' with a gun, nothing to fall back on with no gun",
+              HandSpots.Words("guard") == " · left hand: guard · right hand: guard" &&
+              string.Join("|", HandSpots.Fallbacks("LEMI", "guard")) == "any gun @ guard" && HandSpots.Fallbacks("", "guard").Count == 0);
         Check("finger groups: L_IndexF1 and l_hand_index_0 name their finger, a lone joint none",
               PoseModel.GroupOf("L_IndexF1") == "L_IndexF" && PoseModel.GroupOf("l_hand_index_0") == "l_hand_index" && PoseModel.GroupOf("L_Hand") == null);
         link.WriteCommand(cmd);

@@ -14,3 +14,7 @@
 14 both holsters -> at left hip holster + right hand at left shoulder holster
 15 per-hand load -> [hand_poser] own pose loaded: no gun @ at left hip holster | no gun @ right hand at left shoulder holster
 16 no 214-216    -> free
+17 guard         -> guard
+18 guard, no gun -> 'any gun @ guard' used: false
+19 guard pose    -> [hand_poser] own pose loaded: no gun @ guard
+20 block off     -> ready at slide + right hand ready at slide

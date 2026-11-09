@@ -109,7 +109,7 @@ class PoserUi : Form {
         gunRow.Controls.Add(perGunBox);
         // 2026-10-26 (Tefa: "automatic saving for hand poses on different land spots and different start grab spots")
         perSpot = settings.Get("per_spot", "1") == "1";
-        perSpotBox = new SkinCheckBox { Text = "AND EACH HAND SPOT (start sphere, landing spot, slide, magazine, a free hand's area, a holster)", AutoSize = true, Checked = perSpot, ForeColor = Ink, Padding = new Padding(4, 4, 0, 0) };
+        perSpotBox = new SkinCheckBox { Text = "AND EACH HAND SPOT (start sphere, landing spot, slide, magazine, a free hand's area, a holster, the guard)", AutoSize = true, Checked = perSpot, ForeColor = Ink, Padding = new Padding(4, 4, 0, 0) };
         perSpotBox.CheckedChanged += (s, e) => { perSpot = perSpotBox.Checked; settings.Set("per_spot", perSpot ? "1" : "0"); GunCheck(); };
         gunRow.Controls.Add(perSpotBox);
 
@@ -352,7 +352,7 @@ class PoserUi : Form {
     // hand NOT at the spot now keeps the gun's own pose: its joints are taken from the gun's file (the game script does the same)
     void KeepOtherHand(string gunFile) {
         string sp = model.Spot ?? "";
-        bool ownR = sp.Contains("right hand") || sp.Contains("trigger pulled");
+        bool ownR = sp.Contains("right hand") || sp.Contains("trigger pulled") || sp == HandSpots.GUARD;   // the guard is both hands
         bool ownL = sp != "" && !sp.StartsWith("right hand") && !sp.StartsWith("trigger pulled");
         try {
             if (!File.Exists(gunFile)) return;

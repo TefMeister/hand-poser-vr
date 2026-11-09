@@ -1,6 +1,7 @@
 ﻿-- spot_names.lua -- checks the spot names the in-game script gives the window, with REFramework and Visceral RE8's bridge
 -- pretended (no game needed): the area a free left hand is in (slot 213), "ready on <spot>" with LT up, old builds without slot 213,
--- both hands at the holsters (214 / 215), the right hand's gun zone (216), and which pose file each hand's spot loads.
+-- both hands at the holsters (214 / 215), the right hand's gun zone (216), the block's guard (re8vr.wants_block), and which
+-- pose file each hand's spot loads.
 --   lua test/spot_names.lua reframework/autorun/hand_poser.lua "hand_poser\\guns/"    (expected lines: test/spot_names.expected)
 local script, gunsdir = arg[1], arg[2]
 local frame_cb, entries = nil, {}
@@ -83,3 +84,14 @@ print("15 per-hand load -> " .. last_log)
 -- 16. an older build with none of 214-216: as before
 slots[214], slots[215], slots[216] = nil, nil, nil; slots[153] = 15; run(20)
 print("16 no 214-216    -> " .. spot())
+-- 17. the block held (praydog's re8vr.wants_block): both hands "guard", over a zone and a holster
+slots[214], slots[215], slots[216] = 2, 4, 12; slots[153], slots[213] = 14, 12; _G.re8vr = { wants_block = true }; run(20)
+print("17 guard         -> " .. spot())
+-- 18. a guard pose kept for every gun is used with a gun in hand; with no gun only "no gun @ guard" counts
+kept("any gun @ guard", { L_Hand = { 1, 1, 1 }, R_Hand = { 2, 2, 2 } }); _G.re8vr.wants_block = false; run(20); _G.re8vr.wants_block = true; run(60)
+print("18 guard, no gun -> 'any gun @ guard' used: " .. tostring(last_log:find("guard", 1, true) ~= nil))
+kept("no gun @ guard", { L_Hand = { 3, 3, 3 }, R_Hand = { 4, 4, 4 } }); _G.re8vr.wants_block = false; run(20); _G.re8vr.wants_block = true; run(60)
+print("19 guard pose    -> " .. last_log)
+-- 20. the block let go: back to the zones
+_G.re8vr.wants_block = false; run(20)
+print("20 block off     -> " .. spot())

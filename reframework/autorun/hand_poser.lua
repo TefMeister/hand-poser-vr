@@ -307,6 +307,15 @@ end
 local function holster_of(slot) return HOLSTER_NAMES[slot_code(slot)] or "" end
 local function is_holster(sp) return sp:sub(1, 3) == "at " or sp:sub(1, 14) == "right hand at " end
 local function is_right_ready(sp) return sp:sub(1, 17) == "right hand ready " end
+-- 2026-11-09 (Tefa: "the guard hand pose, can i change that too, so i can bend hands a little so they unmistakebly look like
+-- protecting the player"): while Village's block is on (praydog's re8vr.wants_block: LT on its own, the arms up), BOTH hands'
+-- spot is "guard", one pose per gun for the two hands ("<gun> @ guard" -> "any gun @ guard"; "no gun @ guard"). It wins over
+-- every zone and holster.
+local GUARD = "guard"
+local function guard_on()
+    local v = rawget(_G, "re8vr")
+    return type(v) == "table" and v.wants_block == true
+end
 local function current_spot()
     local b = rawget(_G, "visceral_re8_bridge")
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
@@ -424,7 +433,7 @@ local GUNS_DIR = DIR .. "guns/"
 local own_key, own_loads = nil, 0
 -- 2026-11-08: a spot where the hand is NOT on the gun's grip; with no pose saved for it the left hand is let go (the game's open /
 -- close works on it, as before the spot existed) instead of keeping the pose in hand. The app's own commands still hold it (tuning).
-local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["free"] = true }
+local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["free"] = true, [GUARD] = true }   -- guard: 2026-11-09
 local function load_pose_file(name)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(name) .. ".json")
     if ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil then return d end
@@ -434,7 +443,7 @@ end
 -- free, a holster; the right hand's zone) is looked up on its own when no file is kept for the two hands together, most specific
 -- first: "<gun> @ <spot>" -> "<gun> @ ready" (or "right hand ready") -> "any gun @ ...". A holster has no plain form: "<gun> @ at
 -- <holster>" -> "any gun @ at <holster>"; with no gun in hand the key is "no gun @ at <holster>" (bare hands), with no fall-back.
-local function own_kind(part) return part ~= "" and (is_ready(part) or part == "free" or is_holster(part) or is_right_ready(part)) end
+local function own_kind(part) return part ~= "" and (is_ready(part) or part == "free" or part == GUARD or is_holster(part) or is_right_ready(part)) end
 local function hand_chain(part)
     local g = gun_now == "" and "no gun" or gun_now
     local list = { g .. " @ " .. part }
@@ -442,7 +451,7 @@ local function hand_chain(part)
     if plain then
         if plain ~= part then list[#list + 1] = g .. " @ " .. plain end
         list[#list + 1] = "any gun @ " .. plain
-    elseif is_holster(part) and gun_now ~= "" then
+    elseif (is_holster(part) or part == GUARD) and gun_now ~= "" then
         list[#list + 1] = "any gun @ " .. part
     end
     return list
@@ -718,8 +727,10 @@ re.on_frame(function()
             if h ~= "" then sp = "at " .. h end
         end
         local rs = right_spot()
+        if guard_on() then sp, rs = GUARD, GUARD end   -- 2026-11-09: the block's guard, both hands, wins over everything
         spot_left_now, spot_right_now = sp, rs
-        if rs ~= "" then sp = sp ~= "" and (sp .. " + " .. rs) or rs end
+        if rs == GUARD then sp = GUARD   -- one spot for the two hands: "<gun> @ guard"
+        elseif rs ~= "" then sp = sp ~= "" and (sp .. " + " .. rs) or rs end
         if sp ~= spot_now then spot_now = sp; write_state_now = true end
     end
     if gun_checked_frame == frame or spot_checked_frame == frame then pcall(load_own_pose) end
