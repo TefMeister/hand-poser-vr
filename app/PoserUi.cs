@@ -32,7 +32,7 @@ class PoserUi : Form {
     DateTime lastFind = DateTime.MinValue, lastStateWrite = DateTime.MinValue;
     bool autosaveLoaded, syncing;
 
-    Label status, scriptNote;
+    Label status, scriptNote, whereLine;   // whereLine: where the shown hand is, big (2026-11-09)
     Button scriptButton, undoButton, redoButton;
     TextBox filter, buildName;
     ListBox allJoints;
@@ -91,6 +91,7 @@ class PoserUi : Form {
         Controls.Add(top);
 
         status = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
+        whereLine = HandSpots.MakeLine(Ink);
         var gameRow = Row(32);
         gameRow.Controls.Add(Btn("GAME FOLDER...", (s, e) => PickFolder()));
         scriptButton = Btn("PUT THE SCRIPT INTO THE GAME", (s, e) => InstallScript());
@@ -161,6 +162,7 @@ class PoserUi : Form {
         top.Controls.Add(gunRow);
         top.Controls.Add(gameRow);
         top.Controls.Add(status);
+        top.Controls.Add(whereLine);   // added last: the topmost line
         topPanel = top;
         ShowJointList(false);
     }
@@ -398,10 +400,11 @@ class PoserUi : Form {
 
     void UpdateStatus() {
         bool alive = link.Folder != null && link.ScriptAlive();
+        whereLine.Text = dockShown && model.Connected ? HandSpots.Line(model.Spot, shownSide, model.Gun) : "";
         if (link.Folder == null) { status.Text = "no game found yet: start an RE game with REFramework, or pick its folder"; status.ForeColor = Bad; }
         else if (!alive) { status.Text = Path.GetFileName(link.Folder) + " · waiting for the script in the game"; status.ForeColor = Dim; }
         else if (!model.Connected) { status.Text = model.Game + " · script running, no character yet (load into the game)"; status.ForeColor = Dim; }
-        else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (perGun && poseGun != null ? " · pose of: " + GunWords(poseGun) : "") + HandSpots.Words(model.Spot) + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
+        else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (perGun && poseGun != null ? " · pose of: " + GunWords(poseGun) : "") + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
         if (link.Folder == null) { scriptButton.Enabled = false; scriptNote.Text = ""; }
         else if (link.ScriptUpToDate()) { scriptButton.Enabled = false; scriptNote.Text = "script is in the game"; }
         else { scriptButton.Enabled = true; scriptNote.Text = link.ScriptInstalled() ? "an older script is in the game" : "script not in the game yet"; }

@@ -66,15 +66,17 @@ static class SelfTest {
         Check("plain names: R_IndexF1 is the right index knuckle, l_hand_thumb_2 the left thumb tip, L_Hand the left wrist",
               JointNames.Describe("R_IndexF1") == "right index finger: knuckle (base)" && JointNames.Describe("l_hand_thumb_2") == "left thumb: tip joint" &&
               JointNames.Describe("L_Hand") == "left wrist (turns the whole hand)" && JointNames.Describe("L_PinkyF3") == "left pinky finger: tip joint");
-        Check("left hand words: the area a ready hand is in, a worked part with LT up, plain ready, free, a docked spot nothing",
-              HandSpots.Words("ready at slide from the left + right hand on the cover") == " · left hand: ready, in the slide from the left area" &&
-              HandSpots.Words("ready on magazine") == " · left hand: ready, docked on the magazine (LT closes it)" &&
-              HandSpots.Words("ready").Contains("no name yet") && HandSpots.Words("free") == " · left hand: free" &&
-              HandSpots.Words("slide") == "" && HandSpots.Words(null) == "");
-        Check("hand words for the holsters and the right hand's zone (Visceral RE8 b104)",
-              HandSpots.Words("at left hip holster + right hand at left shoulder holster") == " · left hand: at the left hip holster · right hand: at the left shoulder holster" &&
-              HandSpots.Words("free + right hand ready at slide from the left") == " · left hand: free · right hand: ready, in the slide from the left area" &&
-              HandSpots.Words("right hand on the cover") == "");
+        Check("the selected hand's line: only that hand, in plain words (left zone, free, docked, holster; right zone, grip, no gun)",
+              HandSpots.Line("ready at slide from the left + right hand on the cover", "l", "LEMI") == "LEFT HAND: in the slide from the left grab zone (hand open, ready)" &&
+              HandSpots.Line("ready at slide from the left + right hand on the cover", "r", "LEMI") == "RIGHT HAND: on the cover" &&
+              HandSpots.Line("free", "l", "LEMI") == "LEFT HAND: free: near the gun, in no zone" &&
+              HandSpots.Line("ready on magazine", "", "LEMI") == "LEFT HAND: docked on the magazine, hand open until LT" &&
+              HandSpots.Line("slide", "l", "LEMI") == "LEFT HAND: docked on the slide" &&
+              HandSpots.Line("free + right hand ready at slide from the left", "r", "LEMI") == "RIGHT HAND: in the slide from the left grab zone (hand open, ready)" &&
+              HandSpots.Line("right hand at right hip holster", "r", "") == "RIGHT HAND: at the right hip holster" &&
+              HandSpots.Line("right hand at right hip holster", "l", "") == "LEFT HAND: away from the gun, in no zone" &&
+              HandSpots.Line("", "r", "LEMI") == "RIGHT HAND: on the gun's grip" && HandSpots.Line(null, "r", "") == "RIGHT HAND: free, no gun in hand" &&
+              HandSpots.Line("free + trigger pulled", "r", "LEMI") == "RIGHT HAND: on the grip, trigger pulled");
         Check("fall-backs for a never-posed spot, in the game script's order",
               string.Join("|", HandSpots.Fallbacks("LEMI", "ready at slide")) == "LEMI @ ready|any gun @ ready" &&
               string.Join("|", HandSpots.Fallbacks("LEMI", "right hand ready at drum")) == "LEMI @ right hand ready|any gun @ right hand ready" &&
@@ -82,7 +84,7 @@ static class SelfTest {
               HandSpots.Fallbacks("", "at right hip holster").Count == 0 && HandSpots.Fallbacks("LEMI", "slide").Count == 0 &&
               HandSpots.Fallbacks("LEMI", "at left hip holster + right hand at left shoulder holster").Count == 0);
         Check("the guard: both hands named, 'any gun @ guard' with a gun, nothing to fall back on with no gun",
-              HandSpots.Words("guard") == " · left hand: guard · right hand: guard" &&
+              HandSpots.Line("guard", "l", "") == "LEFT HAND: guard (block held, arms up)" && HandSpots.Line("guard", "r", "") == "RIGHT HAND: guard (block held, arms up)" &&
               string.Join("|", HandSpots.Fallbacks("LEMI", "guard")) == "any gun @ guard" && HandSpots.Fallbacks("", "guard").Count == 0);
         Check("finger groups: L_IndexF1 and l_hand_index_0 name their finger, a lone joint none",
               PoseModel.GroupOf("L_IndexF1") == "L_IndexF" && PoseModel.GroupOf("l_hand_index_0") == "l_hand_index" && PoseModel.GroupOf("L_Hand") == null);
