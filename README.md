@@ -45,6 +45,10 @@ The game needs [REFramework](https://github.com/praydog/REFramework) installed (
    the slide from the left area*, and the pose kept there is that gun's for that area only (`<gun> @ ready at <area>`), falling
    back to the gun's plain ready pose, then to `any gun @ ready`. The same for a hand docked on a part with the trigger up
    (`<gun> @ ready on slide`). Freeze the hand with Hand Freeze while it is in the area, pose it, and it is saved under that name.
+   From Village b104 both hands are named at the holsters too (*left hand: at the right hip holster*, saved as
+   `<gun> @ at right hip holster`, falling back to `any gun @ at right hip holster`; with no gun in hand `no gun @ at ...`), and
+   the right hand in a gun zone while the left holds the gun (`<gun> @ right hand ready at drum`). A gun zone wins over a holster.
+   When no file is kept for both hands' spots together, each hand loads its own; a spot never posed starts from that fall-back.
 5. Drag the sliders. X, Y and Z are the joint's local turning angles in degrees, −180 to 180; arrow keys nudge by half a
    degree, Page Up/Down by five.
 6. Type a name next to **build name** and press **SAVE BUILD** to keep the pose; pick it under **saved builds** and press

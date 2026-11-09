@@ -67,10 +67,20 @@ static class SelfTest {
               JointNames.Describe("R_IndexF1") == "right index finger: knuckle (base)" && JointNames.Describe("l_hand_thumb_2") == "left thumb: tip joint" &&
               JointNames.Describe("L_Hand") == "left wrist (turns the whole hand)" && JointNames.Describe("L_PinkyF3") == "left pinky finger: tip joint");
         Check("left hand words: the area a ready hand is in, a worked part with LT up, plain ready, free, a docked spot nothing",
-              LeftHand.Words("ready at slide from the left + right hand on the cover") == " · left hand: ready, in the slide from the left area" &&
-              LeftHand.Words("ready on magazine") == " · left hand: ready, docked on the magazine (LT closes it)" &&
-              LeftHand.Words("ready").Contains("no name yet") && LeftHand.Words("free") == " · left hand: free" &&
-              LeftHand.Words("slide") == "" && LeftHand.Words(null) == "");
+              HandSpots.Words("ready at slide from the left + right hand on the cover") == " · left hand: ready, in the slide from the left area" &&
+              HandSpots.Words("ready on magazine") == " · left hand: ready, docked on the magazine (LT closes it)" &&
+              HandSpots.Words("ready").Contains("no name yet") && HandSpots.Words("free") == " · left hand: free" &&
+              HandSpots.Words("slide") == "" && HandSpots.Words(null) == "");
+        Check("hand words for the holsters and the right hand's zone (Visceral RE8 b104)",
+              HandSpots.Words("at left hip holster + right hand at left shoulder holster") == " · left hand: at the left hip holster · right hand: at the left shoulder holster" &&
+              HandSpots.Words("free + right hand ready at slide from the left") == " · left hand: free · right hand: ready, in the slide from the left area" &&
+              HandSpots.Words("right hand on the cover") == "");
+        Check("fall-backs for a never-posed spot, in the game script's order",
+              string.Join("|", HandSpots.Fallbacks("LEMI", "ready at slide")) == "LEMI @ ready|any gun @ ready" &&
+              string.Join("|", HandSpots.Fallbacks("LEMI", "right hand ready at drum")) == "LEMI @ right hand ready|any gun @ right hand ready" &&
+              string.Join("|", HandSpots.Fallbacks("LEMI", "at right hip holster")) == "any gun @ at right hip holster" &&
+              HandSpots.Fallbacks("", "at right hip holster").Count == 0 && HandSpots.Fallbacks("LEMI", "slide").Count == 0 &&
+              HandSpots.Fallbacks("LEMI", "at left hip holster + right hand at left shoulder holster").Count == 0);
         Check("finger groups: L_IndexF1 and l_hand_index_0 name their finger, a lone joint none",
               PoseModel.GroupOf("L_IndexF1") == "L_IndexF" && PoseModel.GroupOf("l_hand_index_0") == "l_hand_index" && PoseModel.GroupOf("L_Hand") == null);
         link.WriteCommand(cmd);

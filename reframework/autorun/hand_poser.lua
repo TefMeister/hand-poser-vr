@@ -17,6 +17,11 @@
 local DIR = "hand_poser\\"
 local STATE_FILE = DIR .. "state.json"
 local COMMAND_FILE = DIR .. "command.json"
+-- 2026-11-09: declared up here so read_command clears THIS flag; it was declared further down, so read_command's "tuning wins"
+-- wrote a stray global and a hand at a never-posed spot stayed let go while the window posed it
+local spot_unposed = false                 -- the left hand's spot has no pose kept: the hand is the game's
+local posed_left, posed_right = false, false   -- a hand's own spot pose (ready, holster) was found: hold that hand even off the gun
+local tuning = false                       -- the window sent a pose since the spot last changed
 local POLL_EVERY_FRAMES = 3        -- how often command.json is looked at
 local STATE_EVERY_SEC = 1.0        -- how often state.json is written when nothing changed
 local STATE_LIVE_SEC = 0.12        -- 2026-10-25: while joints are held or read, often enough for live numbers in the window
@@ -189,6 +194,7 @@ local function read_command()
     if type(cmd) ~= "table" or cmd.seq == nil or cmd.seq == last_seq then return end
     last_seq = cmd.seq
     spot_unposed = false   -- the app is holding a pose: tuning wins (2026-11-08)
+    tuning = true          -- 2026-11-09: a hand at its own spot (ready, holster) is held even off the gun while the window poses it
     held = {}
     for name, v in pairs(cmd.hold or {}) do
         if type(v) == "table" and #v == 3 then
@@ -286,6 +292,21 @@ local function ready_name()   -- the free hand's spot name: "ready at <area>", o
     return a ~= "" and ("ready at " .. a) or "ready"
 end
 local function is_ready(sp) return sp == "ready" or sp:sub(1, 6) == "ready " end   -- "ready", "ready at <area>", "ready on <spot>"
+-- 2026-11-09 (Tefa: "read all the grip zones we have in the game for all the guns and holster zones for both left and right hand"):
+-- Visceral RE8 b104 writes slot 214 / 215 = the holster spot the left / right hand is inside, and 216 = the gun zone the RIGHT hand
+-- is in while the LEFT hand holds the gun (the same codes as 213). A hand at a holster is "at <holster>" ("right hand at <holster>"
+-- for the right), the right hand in a zone "right hand ready at <area>". A gun zone wins over a holster. Older builds: as before.
+local LEFT_HOLSTER_SLOT, RIGHT_HOLSTER_SLOT, RIGHT_AREA_SLOT = 214, 215, 216
+local HOLSTER_NAMES = { [1] = "right shoulder holster", [2] = "right hip holster", [3] = "left hip holster", [4] = "left shoulder holster" }
+local function slot_code(slot)   -- a bridge slot as a whole number; 0 when the build has no such slot
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return 0 end
+    local ok, v = pcall(b.r, slot)
+    return (ok and type(v) == "number") and math.floor(v + 0.5) or 0
+end
+local function holster_of(slot) return HOLSTER_NAMES[slot_code(slot)] or "" end
+local function is_holster(sp) return sp:sub(1, 3) == "at " or sp:sub(1, 14) == "right hand at " end
+local function is_right_ready(sp) return sp:sub(1, 17) == "right hand ready " end
 local function current_spot()
     local b = rawget(_G, "visceral_re8_bridge")
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
@@ -385,6 +406,12 @@ local function right_spot()
     if v == 2 then return "right hand on the bolt" end
     if v == 3 then return "right hand over the hammer" end   -- 2026-11-06: the Wolfsbane's right hand lifted over the hammer, the cover open (Visceral RE8 b075)
     if v == 4 then return "right hand on the bolt at the back" end   -- 2026-11-08: from the bolt's click at the back until it is home
+    if v ~= 0 then return "" end
+    -- 2026-11-09 (Visceral RE8 b104): the right hand in a gun zone while the left holds the gun, else at a holster
+    local area = AREA_NAMES[slot_code(RIGHT_AREA_SLOT)]
+    if area then return "right hand ready at " .. area end
+    local h = holster_of(RIGHT_HOLSTER_SLOT)
+    if h ~= "" then return "right hand at " .. h end
     return ""
 end
 
@@ -398,59 +425,96 @@ local own_key, own_loads = nil, 0
 -- 2026-11-08: a spot where the hand is NOT on the gun's grip; with no pose saved for it the left hand is let go (the game's open /
 -- close works on it, as before the spot existed) instead of keeping the pose in hand. The app's own commands still hold it (tuning).
 local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["free"] = true }
--- 2026-11-09: the ready and free poses: the gun's own if kept ("<gun> @ ready"), else one for every gun ("any gun @ ready")
-local ONE_FOR_ALL = { ["ready"] = true, ["free"] = true }
 local function load_pose_file(name)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(name) .. ".json")
     if ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil then return d end
     return nil
 end
-local spot_unposed = false
+-- 2026-11-09 (Tefa: "read all the grip zones ... and holster zones for both left and right hand"): each hand's own spot (ready,
+-- free, a holster; the right hand's zone) is looked up on its own when no file is kept for the two hands together, most specific
+-- first: "<gun> @ <spot>" -> "<gun> @ ready" (or "right hand ready") -> "any gun @ ...". A holster has no plain form: "<gun> @ at
+-- <holster>" -> "any gun @ at <holster>"; with no gun in hand the key is "no gun @ at <holster>" (bare hands), with no fall-back.
+local function own_kind(part) return part ~= "" and (is_ready(part) or part == "free" or is_holster(part) or is_right_ready(part)) end
+local function hand_chain(part)
+    local g = gun_now == "" and "no gun" or gun_now
+    local list = { g .. " @ " .. part }
+    local plain = is_ready(part) and "ready" or is_right_ready(part) and "right hand ready" or part == "free" and "free" or nil
+    if plain then
+        if plain ~= part then list[#list + 1] = g .. " @ " .. plain end
+        list[#list + 1] = "any gun @ " .. plain
+    elseif is_holster(part) and gun_now ~= "" then
+        list[#list + 1] = "any gun @ " .. part
+    end
+    return list
+end
+local function load_chain(part)
+    if not own_kind(part) then return nil end
+    for _, n in ipairs(hand_chain(part)) do
+        local d = load_pose_file(n)
+        if d then return d, n end
+    end
+    return nil
+end
+local function put_joints(into, joints, side)   -- side "l_" / "r_": only that hand's joints; nil: the hand-less ones too
+    for name, v in pairs(joints) do
+        local s2 = name:sub(1, 2):lower()
+        local mine = (side == nil) or s2 == side
+        if mine and type(v) == "table" and #v == 3 then into[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+    end
+end
+local function put_joints_from(into, from, side)   -- copy one hand's held joints (already in radians)
+    for name, v in pairs(from) do if name:sub(1, 2):lower() == side then into[name] = v end end
+end
 local function load_own_pose()
     local key = (gun_now == "" and "no gun" or gun_now) .. (spot_now ~= "" and (" @ " .. spot_now) or "")
     if key == own_key then return end
     own_key = key
+    tuning, posed_left, posed_right = false, false, false
     if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
     local found = ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
-    if not found and (ONE_FOR_ALL[spot_left_now] or is_ready(spot_left_now)) then
-        -- most specific first: "<gun> @ ready at <area>" (or "ready on <spot>") -> "<gun> @ ready" -> "any gun @ ready"
-        local g = gun_now == "" and "no gun" or gun_now
-        local plain = is_ready(spot_left_now) and "ready" or spot_left_now
-        d = load_pose_file(g .. " @ " .. spot_left_now)
-        if d == nil and plain ~= spot_left_now then d = load_pose_file(g .. " @ " .. plain) end
-        d = d or load_pose_file("any gun @ " .. plain)
-        found = d ~= nil
+    -- no file for the two hands together: each hand's own spot on its own (the ready areas, free, the holsters, the right's zone)
+    local dl, nl, dr, nr
+    if not found then
+        dl, nl = load_chain(spot_left_now)
+        dr, nr = load_chain(spot_right_now)
     end
     -- 2026-11-09 (Tefa, the LEMI: "hand pose when getting to the end of the slide rack must stay the same until LT is released"):
     -- the window keeps an EMPTY file ({"joints":{}}) for a spot never posed ("slide from the left at the back"), which loaded as a
     -- pose of nothing and let the fingers go at the click. An empty file now counts as none: the pose in hand stays
-    spot_unposed = (not found) and (FREE_UNLESS_POSED[spot_now] == true or is_ready(spot_left_now))   -- a free hand in any area too
-    if not found then return end   -- none kept: the pose in hand stays
+    spot_unposed = not (found or dl) and (FREE_UNLESS_POSED[spot_now] == true or is_ready(spot_left_now) or is_holster(spot_left_now))
+    if not found and not dl and not dr then return end   -- none kept: the pose in hand stays
+    local before = held
     held = {}
     -- 2026-11-09 (Tefa: "when i put my hand on the grip ... right hand goes into a relaxed pose again"): a spot's pose holds only the
     -- hand that is at the spot (the magazine, the slide: the left), and loading it dropped the other hand's joints that the gun's own
     -- pose holds. The gun's own pose goes in first now, the spot's on top: each hand keeps its pose unless the spot has its own
     if spot_now ~= "" then
         local okb, base = pcall(json.load_file, GUNS_DIR .. safe_name(gun_now == "" and "no gun" or gun_now) .. ".json")
-        if okb and type(base) == "table" and type(base.joints) == "table" then
-            for name, v in pairs(base.joints) do
-                if type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
-            end
-        end
+        if okb and type(base) == "table" and type(base.joints) == "table" then put_joints(held, base.joints, nil) end
     end
-    -- the spot's file sets only the hand(s) at the spot; the other hand keeps the gun's own pose (an older spot file that also saved
-    -- the other hand's joints no longer overrides the gun's grip)
-    local own_l, own_r = spot_left_now ~= "", spot_right_now ~= ""
-    if spot_now == "" then own_l, own_r = true, true end
-    for name, v in pairs(d.joints) do
-        local ln = name:lower()
-        local is_r, is_l = ln:sub(1, 2) == "r_", ln:sub(1, 2) == "l_"
-        local mine = (is_l and own_l) or (is_r and own_r) or (not is_l and not is_r)
-        if mine and type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+    if found then
+        -- the spot's file sets only the hand(s) at the spot; the other hand keeps the gun's own pose (an older spot file that also
+        -- saved the other hand's joints no longer overrides the gun's grip)
+        local own_l, own_r = spot_left_now ~= "", spot_right_now ~= ""
+        if spot_now == "" then own_l, own_r = true, true end
+        if own_l then put_joints(held, d.joints, "l_") end
+        if own_r then put_joints(held, d.joints, "r_") end
+        for name, v in pairs(d.joints) do
+            local s2 = name:sub(1, 2):lower()
+            if s2 ~= "l_" and s2 ~= "r_" and type(v) == "table" and #v == 3 then held[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+        end
+        posed_left, posed_right = own_kind(spot_left_now), own_kind(spot_right_now)
+    else
+        -- per hand: its own file, else (at a spot with none) the pose it had, else (at no spot) the gun's own from above
+        if dl then put_joints(held, dl.joints, "l_") elseif spot_left_now ~= "" then put_joints_from(held, before, "l_") end
+        if dr then put_joints(held, dr.joints, "r_") elseif spot_right_now ~= "" then put_joints_from(held, before, "r_") end
+        posed_left, posed_right = dl ~= nil, dr ~= nil
     end
     own_loads = own_loads + 1
-    if own_loads <= 50 then log.info("[hand_poser] own pose loaded: " .. key) end
+    if own_loads <= 50 then
+        log.info("[hand_poser] own pose loaded: " .. (found and key or ((nl or "-") .. " | " .. (nr or "-"))))
+    end
 end
 
 local function write_state()
@@ -499,8 +563,11 @@ local function hands_on_gun()
     local ok1, sp = pcall(b.r, SPOT_SLOT)
     local ok2, g = pcall(b.r, 36)
     local left = (ok1 and type(sp) == "number" and sp > 0.5) or (ok2 and type(g) == "number" and g > 0.5)
+    -- 2026-11-09: a hand at its own spot (a ready area, a holster) with a pose kept, or being posed in the window, is held even
+    -- with no gun in hand (bare hands at a holster) or the left off the gun
+    left = left or posed_left or (tuning and own_kind(spot_left_now))
     if spot_unposed then left = false end   -- 2026-11-08: a magazine in hand with no pose of its own: the hand is free
-    return left, gun_now ~= ""
+    return left, gun_now ~= "" or posed_right or (tuning and own_kind(spot_right_now))
 end
 
 -- 2026-11-08: the trigger finger. The gun's "trigger pulled" pose (data/hand_poser/guns/<gun> @ trigger pulled.json, kept by the
@@ -565,7 +632,7 @@ local SWAY_PHASE = { L_Index = 0.0, L_Middle = 1.1, L_Ring = 2.3, L_Pinky = 3.1 
 local shown, blend_t = {}, nil
 local function wrap_rad(a) while a > math.pi do a = a - 2 * math.pi end while a < -math.pi do a = a + 2 * math.pi end return a end
 local function sway_of(name)
-    if spot_left_now ~= "ready" then return 0.0 end
+    if not is_ready(spot_left_now) then return 0.0 end   -- 2026-11-09: every ready spot ("ready at <area>" too), not only the plain one
     local f = name:match("^(L_%a+)F[12]$")
     local ph = f and SWAY_PHASE[f]
     if not ph then return 0.0 end
@@ -646,6 +713,10 @@ re.on_frame(function()
     if frame - spot_checked_frame >= 3 then   -- the hand lands in a fraction of a second: its spot is told quickly
         spot_checked_frame = frame
         local sp = effective_left(current_spot())
+        if sp == "" or sp == "free" then   -- 2026-11-09 (Visceral RE8 b104): a free left hand at a holster; a gun zone wins
+            local h = holster_of(LEFT_HOLSTER_SLOT)
+            if h ~= "" then sp = "at " .. h end
+        end
         local rs = right_spot()
         spot_left_now, spot_right_now = sp, rs
         if rs ~= "" then sp = sp ~= "" and (sp .. " + " .. rs) or rs end

@@ -109,7 +109,7 @@ class PoserUi : Form {
         gunRow.Controls.Add(perGunBox);
         // 2026-10-26 (Tefa: "automatic saving for hand poses on different land spots and different start grab spots")
         perSpot = settings.Get("per_spot", "1") == "1";
-        perSpotBox = new SkinCheckBox { Text = "AND EACH HAND SPOT (start sphere, landing spot, slide, magazine, the area a free hand is in)", AutoSize = true, Checked = perSpot, ForeColor = Ink, Padding = new Padding(4, 4, 0, 0) };
+        perSpotBox = new SkinCheckBox { Text = "AND EACH HAND SPOT (start sphere, landing spot, slide, magazine, a free hand's area, a holster)", AutoSize = true, Checked = perSpot, ForeColor = Ink, Padding = new Padding(4, 4, 0, 0) };
         perSpotBox.CheckedChanged += (s, e) => { perSpot = perSpotBox.Checked; settings.Set("per_spot", perSpot ? "1" : "0"); GunCheck(); };
         gunRow.Controls.Add(perSpotBox);
 
@@ -338,6 +338,10 @@ class PoserUi : Form {
             model.Mark();
             if (model.LoadFile(file)) { if (g != (model.Gun ?? "")) KeepOtherHand(model.GunFile(model.Gun ?? "")); poseGun = g; model.GunPoseFile = file; AfterModelChange(); return; }
         }
+        if (perSpot) foreach (var fb in HandSpots.Fallbacks(model.Gun, model.Spot)) {   // 2026-11-09: start from what the game shows there
+            string ff = model.GunFile(fb);
+            if (File.Exists(ff) && HasJoints(ff) && model.LoadFile(ff)) { KeepOtherHand(model.GunFile(model.Gun ?? "")); poseGun = g; model.GunPoseFile = file; try { model.Autosave(); } catch (IOException) { } AfterModelChange(); return; }
+        }
         poseGun = g;               // a gun never posed: it starts from the pose in hand, kept from now on as its own
         model.GunPoseFile = file;
         try { model.Autosave(); } catch (IOException) { }
@@ -397,7 +401,7 @@ class PoserUi : Form {
         if (link.Folder == null) { status.Text = "no game found yet: start an RE game with REFramework, or pick its folder"; status.ForeColor = Bad; }
         else if (!alive) { status.Text = Path.GetFileName(link.Folder) + " · waiting for the script in the game"; status.ForeColor = Dim; }
         else if (!model.Connected) { status.Text = model.Game + " · script running, no character yet (load into the game)"; status.ForeColor = Dim; }
-        else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (perGun && poseGun != null ? " · pose of: " + GunWords(poseGun) : "") + LeftHand.Words(model.Spot) + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
+        else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (perGun && poseGun != null ? " · pose of: " + GunWords(poseGun) : "") + HandSpots.Words(model.Spot) + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
         if (link.Folder == null) { scriptButton.Enabled = false; scriptNote.Text = ""; }
         else if (link.ScriptUpToDate()) { scriptButton.Enabled = false; scriptNote.Text = "script is in the game"; }
         else { scriptButton.Enabled = true; scriptNote.Text = link.ScriptInstalled() ? "an older script is in the game" : "script not in the game yet"; }

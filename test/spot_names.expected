@@ -7,3 +7,10 @@
 7 start 3, area  -> ready at slide
 8 free           -> free
 9 specific pose  -> ready at slide from the left  (own pose loaded for it: true)
+10 left holster  -> at right hip holster
+11 zone + holster-> ready at slide
+12 right zone    -> free + right hand ready at slide from the left
+13 right holster -> free + right hand at left shoulder holster
+14 both holsters -> at left hip holster + right hand at left shoulder holster
+15 per-hand load -> [hand_poser] own pose loaded: no gun @ at left hip holster | no gun @ right hand at left shoulder holster
+16 no 214-216    -> free

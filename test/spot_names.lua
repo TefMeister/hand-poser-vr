@@ -1,5 +1,6 @@
 ﻿-- spot_names.lua -- checks the spot names the in-game script gives the window, with REFramework and Visceral RE8's bridge
--- pretended (no game needed): the area a free left hand is in (slot 213), "ready on <spot>" with LT up, old builds without slot 213.
+-- pretended (no game needed): the area a free left hand is in (slot 213), "ready on <spot>" with LT up, old builds without slot 213,
+-- both hands at the holsters (214 / 215), the right hand's gun zone (216), and which pose file each hand's spot loads.
 --   lua test/spot_names.lua reframework/autorun/hand_poser.lua "hand_poser\\guns/"    (expected lines: test/spot_names.expected)
 local script, gunsdir = arg[1], arg[2]
 local frame_cb, entries = nil, {}
@@ -7,7 +8,8 @@ local state_out = nil
 local files = {}   -- pretend reframework/data files: name -> table
 re = { on_frame = function(f) frame_cb = f end, on_application_entry = function(n, f) entries[n] = f end,
        on_draw_ui = function() end, on_pre_application_entry = function() end }
-log = { info = function() end, warn = function() end, error = function() end, debug = function() end }
+local last_log = ""
+log = { info = function(m) last_log = m end, warn = function() end, error = function() end, debug = function() end }
 imgui = setmetatable({}, { __index = function() return function() return false end end })
 sdk = setmetatable({}, { __index = function() return function() return nil end end })
 fs = { glob = function() return {} end }
@@ -59,3 +61,25 @@ print("8 free           -> " .. spot())
 slots[153] = 14; slots[213] = 18; kept("no gun @ ready at slide from the left", { L_IndexF1 = { 9, 9, 9 } }); run(60)
 local held = _G.hand_poser_held_all
 print("9 specific pose  -> " .. spot() .. "  (own pose loaded for it: " .. tostring(files[gunsdir .. "no gun @ ready at slide from the left.json"] ~= nil) .. ")")
+-- 10. Village b104: a free left hand at the right hip holster
+slots[213], slots[214], slots[215], slots[216] = 0, 2, 0, 0; slots[153] = 15; run(20)
+print("10 left holster  -> " .. spot())
+-- 11. a gun zone wins over a holster
+slots[153] = 14; slots[213] = 12; run(20)
+print("11 zone + holster-> " .. spot())
+-- 12. the right hand in the gun's slide-from-the-left zone (the left hand holds the gun)
+slots[153], slots[213], slots[214], slots[216] = 15, 0, 0, 18; run(20)
+print("12 right zone    -> " .. spot())
+-- 13. the right hand at the left shoulder holster, the left free
+slots[216], slots[215] = 0, 4; run(20)
+print("13 right holster -> " .. spot())
+-- 14. both hands at holsters
+slots[214] = 3; run(20)
+print("14 both holsters -> " .. spot())
+-- 15. bare hands: a pose kept for each hand's holster on its own, none for the two together: each hand loads its own
+kept("no gun @ at left hip holster", { L_IndexF1 = { 5, 5, 5 } }); kept("no gun @ right hand at left shoulder holster", { R_IndexF1 = { 6, 6, 6 } })
+slots[214], slots[215] = 0, 0; run(20); slots[214], slots[215] = 3, 4; run(60)
+print("15 per-hand load -> " .. last_log)
+-- 16. an older build with none of 214-216: as before
+slots[214], slots[215], slots[216] = nil, nil, nil; slots[153] = 15; run(20)
+print("16 no 214-216    -> " .. spot())
