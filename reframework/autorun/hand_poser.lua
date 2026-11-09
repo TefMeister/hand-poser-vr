@@ -286,7 +286,42 @@ local function current_spot()
     if v == 11 then return "slide at the back" end   -- the slide / pump / bolt from its click at the back until it is home
     if v == 12 then return "slide from the left at the back" end
     if v == 13 then return "magazine in hand" end   -- a magazine carried in the left hand (after B / LT, or from the pouch)
+    -- 2026-11-09 (Tefa: "the hand at only one pose when it is in any activation sphere ... if moved away then to the hand-open pose
+    -- for when it is just not holding anything"): Visceral RE8 b099 tells where a FREE left hand is
+    if v == 14 then return "ready" end   -- free, inside an activation area (a part's zone, the seated magazine, the pouch)
+    if v == 15 then return "free" end    -- free, anywhere else
     return ""
+end
+-- 2026-11-09 (Tefa: "i want the LG to put the left hand on the part, for example dock the left hand on the slide, but leave the hand
+-- open, then LT closes it"): docked on a part that is worked, the left hand shows the READY pose until LT is held, then the part's
+-- own pose (eased both ways). Only once a ready pose is kept (any gun @ ready, or the gun's own); before that, as it was.
+local OPEN_UNTIL_LT = { ["slide"] = true, ["slide from the left"] = true, ["magazine"] = true, ["drum"] = true, ["hammer"] = true }
+local function safe_name(n) return (n:gsub('[<>:"/\\|%?%*]', "_"):gsub("^%s+", ""):gsub("%s+$", "")) end
+local READY_DIR = DIR .. "guns/"   -- (GUNS_DIR is defined further down)
+local ready_cache, ready_cache_t = {}, -100
+local function ready_kept()
+    if now() - ready_cache_t > 2.0 then ready_cache, ready_cache_t = {}, now() end
+    local g = gun_now == "" and "no gun" or gun_now
+    if ready_cache[g] == nil then
+        local function has(n)
+            local ok, d = pcall(json.load_file, READY_DIR .. safe_name(n) .. ".json")
+            return ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
+        end
+        ready_cache[g] = has(g .. " @ ready") or has("any gun @ ready")
+    end
+    return ready_cache[g]
+end
+local function lt_held()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" then return true end
+    local ok, v = pcall(b.r, 3)   -- Visceral RE8's bridge slot 3: LT held
+    return ok and type(v) == "number" and v > 0.5
+end
+local function effective_left(sp)
+    if sp == "" or not ready_kept() then return sp end
+    if sp:sub(1, 6) == "start " then return "ready" end   -- any activation sphere: the one ready pose
+    if OPEN_UNTIL_LT[sp] and not lt_held() then return "ready" end
+    return sp
 end
 -- 2026-11-02 (Tefa: "same with the right hand when it docks on the gun to insert bullets"): Visceral RE8's slot 184, the right
 -- hand's spot; it joins the left's in the spot name, so a pose is kept for each pair of places
@@ -330,9 +365,15 @@ local GUNS_DIR = DIR .. "guns/"
 local own_key, own_loads = nil, 0
 -- 2026-11-08: a spot where the hand is NOT on the gun's grip; with no pose saved for it the left hand is let go (the game's open /
 -- close works on it, as before the spot existed) instead of keeping the pose in hand. The app's own commands still hold it (tuning).
-local FREE_UNLESS_POSED = { ["magazine in hand"] = true }
+local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["free"] = true }
+-- 2026-11-09: the ready and free poses: the gun's own if kept ("<gun> @ ready"), else one for every gun ("any gun @ ready")
+local ONE_FOR_ALL = { ["ready"] = true, ["free"] = true }
+local function load_pose_file(name)
+    local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(name) .. ".json")
+    if ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil then return d end
+    return nil
+end
 local spot_unposed = false
-local function safe_name(n) return (n:gsub('[<>:"/\\|%?%*]', "_"):gsub("^%s+", ""):gsub("%s+$", "")) end
 local function load_own_pose()
     local key = (gun_now == "" and "no gun" or gun_now) .. (spot_now ~= "" and (" @ " .. spot_now) or "")
     if key == own_key then return end
@@ -340,6 +381,10 @@ local function load_own_pose()
     if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
     local found = ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
+    if not found and ONE_FOR_ALL[spot_left_now] then
+        d = load_pose_file((gun_now == "" and "no gun" or gun_now) .. " @ " .. spot_left_now) or load_pose_file("any gun @ " .. spot_left_now)
+        found = d ~= nil
+    end
     -- 2026-11-09 (Tefa, the LEMI: "hand pose when getting to the end of the slide rack must stay the same until LT is released"):
     -- the window keeps an EMPTY file ({"joints":{}}) for a spot never posed ("slide from the left at the back"), which loaded as a
     -- pose of nothing and let the fingers go at the click. An empty file now counts as none: the pose in hand stays
@@ -474,6 +519,23 @@ local function pulled_frame(first_pass, right_on)
     if trig_k <= 0.0 and not first_pass then trig_base = {} end   -- home again (both passes written): let the finger go
 end
 
+-- 2026-11-09 (Tefa: "every docking animation has some steps ... that do weird movements in between"): a pose change was written
+-- in one frame. Now each held joint is shown eased toward its pose (POSE_BLEND_SEC, from where the joint stood when it was taken),
+-- and the ready pose breathes a little (Tefa: "make it animate slightly as well so it's not stiff frozen hand").
+local POSE_BLEND_SEC = 0.15
+local SWAY_DEG, SWAY_W1, SWAY_W2 = 2.0, 0.9, 0.37          -- degrees at its widest; two slow waves (about 7 s and 17 s)
+local SWAY_PHASE = { L_Index = 0.0, L_Middle = 1.1, L_Ring = 2.3, L_Pinky = 3.1 }
+local shown, blend_t = {}, nil
+local function wrap_rad(a) while a > math.pi do a = a - 2 * math.pi end while a < -math.pi do a = a + 2 * math.pi end return a end
+local function sway_of(name)
+    if spot_left_now ~= "ready" then return 0.0 end
+    local f = name:match("^(L_%a+)F[12]$")
+    local ph = f and SWAY_PHASE[f]
+    if not ph then return 0.0 end
+    local t = now()
+    return (SWAY_DEG / DEG) * (0.6 * math.sin(t * SWAY_W1 + ph) + 0.4 * math.sin(t * SWAY_W2 + ph * 1.7))
+end
+
 local function apply(first_pass)
     -- 2026-10-25: how many joints this script holds, for other mods that pose the same joints (Visceral RE8's open hand
     -- stands down while a finger is held here). 2026-11-01: the LEFT hand's joints actually held (that open hand is the left's)
@@ -489,12 +551,35 @@ local function apply(first_pass)
     end
     local nl, n = 0, 0
     if not target or next(held) == nil then _G.hand_poser_held = 0; _G.hand_poser_held_all = 0; pulled_frame(first_pass, right_on); return end
+    local k = 0.0
+    if first_pass then
+        local t = now()
+        local dt = blend_t and math.min(0.1, t - blend_t) or 0.0
+        blend_t = t
+        k = POSE_BLEND_SEC > 0 and math.min(1.0, dt / POSE_BLEND_SEC) or 1.0
+    end
+    for name, sv in pairs(shown) do   -- a joint no longer held, or its hand let go: it starts from where it stands next time
+        local side = name:sub(1, 2):lower()
+        if held[name] == nil or (side == "l_" and not left_on) or (side == "r_" and not right_on) then shown[name] = nil end
+    end
     for name, v in pairs(held) do
         local side = name:sub(1, 2):lower()
         if (side ~= "l_" or left_on) and (side ~= "r_" or right_on) then
             local j = target.by_name[name]
             if j then
-                local ok = pcall(function() j:call("set_LocalEulerAngle", v) end)
+                local cur = shown[name]
+                if cur == nil then
+                    local okr, e = pcall(function() return j:call("get_LocalEulerAngle") end)
+                    cur = (okr and e) and { e.x, e.y, e.z } or { v.x, v.y, v.z }
+                    shown[name] = cur
+                end
+                if first_pass then
+                    cur[1] = cur[1] + wrap_rad(v.x - cur[1]) * k
+                    cur[2] = cur[2] + wrap_rad(v.y - cur[2]) * k
+                    cur[3] = cur[3] + wrap_rad(v.z - cur[3]) * k
+                end
+                local out = Vector3f.new(cur[1], cur[2], cur[3] + sway_of(name))
+                local ok = pcall(function() j:call("set_LocalEulerAngle", out) end)
                 if not ok then target = nil; _G.hand_poser_held = 0; return end
                 n = n + 1
                 if side == "l_" then nl = nl + 1 end
@@ -523,7 +608,7 @@ re.on_frame(function()
     end
     if frame - spot_checked_frame >= 3 then   -- the hand lands in a fraction of a second: its spot is told quickly
         spot_checked_frame = frame
-        local sp = current_spot()
+        local sp = effective_left(current_spot())
         local rs = right_spot()
         spot_left_now, spot_right_now = sp, rs
         if rs ~= "" then sp = sp ~= "" and (sp .. " + " .. rs) or rs end
