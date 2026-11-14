@@ -344,6 +344,12 @@ local function current_spot()
     -- for when it is just not holding anything"): Visceral RE8 b099 tells where a FREE left hand is
     if v == 14 then return ready_name() end   -- free, inside an activation area (a part's zone, the seated magazine, the pouch); named by slot 213
     if v == 15 then return "free" end    -- free, anywhere else
+    -- 2026-11-14 (Tefa: "hand poser needs new lines - two mags in hand - mag in and hand docked on a mag - spare mag in hand while
+    -- mag being pulled from chamber - mag in hand while a mag is also still in the chamber"): Visceral RE8's spare-magazine spots
+    if v == 16 then return "two magazines in hand" end
+    if v == 17 then return "spare in hand, docked on the magazine" end
+    if v == 18 then return "spare in hand, pulling the magazine out" end
+    if v == 19 then return "spare in hand, magazine still in the gun" end
     return ""
 end
 -- 2026-11-09 (Tefa: "i want the LG to put the left hand on the part, for example dock the left hand on the slide, but leave the hand
@@ -438,6 +444,9 @@ local own_key, own_loads = nil, 0
 -- 2026-11-08: a spot where the hand is NOT on the gun's grip; with no pose saved for it the left hand is let go (the game's open /
 -- close works on it, as before the spot existed) instead of keeping the pose in hand. The app's own commands still hold it (tuning).
 local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["free"] = true, [GUARD] = true }   -- guard: 2026-11-09
+-- 2026-11-14: the spare-magazine spots, until posed, use the pose of the spot they were part of before (the same gun)
+local SPOT_FALLBACK = { ["two magazines in hand"] = "magazine in hand", ["spare in hand, docked on the magazine"] = "magazine",
+                        ["spare in hand, pulling the magazine out"] = "magazine in hand", ["spare in hand, magazine still in the gun"] = "magazine in hand" }
 local function load_pose_file(name)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(name) .. ".json")
     if ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil then return d end
@@ -486,6 +495,11 @@ local function load_own_pose()
     if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
     local found = ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil
+    local fb = SPOT_FALLBACK[spot_now]
+    if not found and fb then   -- 2026-11-14: a spare-magazine spot not posed yet: the old spot's pose
+        local d2 = load_pose_file((gun_now == "" and "no gun" or gun_now) .. " @ " .. fb)
+        if d2 then d, found = d2, true end
+    end
     -- no file for the two hands together: each hand's own spot on its own (the ready areas, free, the holsters, the right's zone)
     local dl, nl, dr, nr
     if not found then
@@ -495,7 +509,7 @@ local function load_own_pose()
     -- 2026-11-09 (Tefa, the LEMI: "hand pose when getting to the end of the slide rack must stay the same until LT is released"):
     -- the window keeps an EMPTY file ({"joints":{}}) for a spot never posed ("slide from the left at the back"), which loaded as a
     -- pose of nothing and let the fingers go at the click. An empty file now counts as none: the pose in hand stays
-    spot_unposed = not (found or dl) and (FREE_UNLESS_POSED[spot_now] == true or is_ready(spot_left_now) or is_holster(spot_left_now))
+    spot_unposed = not (found or dl) and (FREE_UNLESS_POSED[spot_now] == true or FREE_UNLESS_POSED[fb or ""] == true or is_ready(spot_left_now) or is_holster(spot_left_now))
     if not found and not dl and not dr then return end   -- none kept: the pose in hand stays
     local before = held
     held = {}

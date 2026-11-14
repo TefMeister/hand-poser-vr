@@ -77,6 +77,15 @@ static class SelfTest {
               HandSpots.Line("right hand at right hip holster", "l", "") == "LEFT HAND: away from the gun, in no zone" &&
               HandSpots.Line("", "r", "LEMI") == "RIGHT HAND: on the gun's grip" && HandSpots.Line(null, "r", "") == "RIGHT HAND: free, no gun in hand" &&
               HandSpots.Line("free + trigger pulled", "r", "LEMI") == "RIGHT HAND: on the grip, trigger pulled");
+        // 2026-11-14: the spare-magazine lines, and where a never-posed one starts from
+        Check("the spare-magazine lines in plain words",
+              HandSpots.Line("two magazines in hand", "l", "LEMI") == "LEFT HAND: holding two magazines" &&
+              HandSpots.Line("spare in hand, docked on the magazine", "l", "LEMI") == "LEFT HAND: spare in hand, docked on the gun's magazine" &&
+              HandSpots.Line("spare in hand, pulling the magazine out", "l", "LEMI") == "LEFT HAND: spare in hand, pulling the gun's magazine out" &&
+              HandSpots.Line("spare in hand, magazine still in the gun", "l", "LEMI") == "LEFT HAND: spare in hand, the gun's magazine still in");
+        Check("a spare-magazine line starts from its older spot's pose",
+              string.Join("|", HandSpots.Fallbacks("LEMI", "spare in hand, docked on the magazine").ToArray()) == "LEMI @ magazine" &&
+              string.Join("|", HandSpots.Fallbacks("LEMI", "two magazines in hand").ToArray()) == "LEMI @ magazine in hand");
         Check("fall-backs for a never-posed spot, in the game script's order",
               string.Join("|", HandSpots.Fallbacks("LEMI", "ready at slide")) == "LEMI @ ready|any gun @ ready" &&
               string.Join("|", HandSpots.Fallbacks("LEMI", "right hand ready at drum")) == "LEMI @ right hand ready|any gun @ right hand ready" &&

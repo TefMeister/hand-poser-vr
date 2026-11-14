@@ -43,6 +43,11 @@ static class HandSpots {
         if (sp.StartsWith(START)) return "in grab sphere " + sp.Substring(START.Length);
         if (sp.StartsWith(LAND)) return "landed on the gun, pair " + sp.Substring(LAND.Length);
         if (sp == "magazine in hand") return "holding a magazine";
+        // 2026-11-14: Visceral RE8's spare-magazine spots
+        if (sp == "two magazines in hand") return "holding two magazines";
+        if (sp == "spare in hand, docked on the magazine") return "spare in hand, docked on the gun's magazine";
+        if (sp == "spare in hand, pulling the magazine out") return "spare in hand, pulling the gun's magazine out";
+        if (sp == "spare in hand, magazine still in the gun") return "spare in hand, the gun's magazine still in";
         if (sp == "rounds from the pouch") return "holding rounds from the pouch";
         if (sp == "") return "away from the gun, in no zone";
         return "docked on the " + sp;   // slide, magazine, handle, drum, insert point, hammer, "... at the back"
@@ -60,10 +65,16 @@ static class HandSpots {
     // the pose files to start a never-posed spot from, most specific first, the same order the game script loads them in
     // (hand_poser.lua hand_chain): "<gun> @ ready" (or "right hand ready") then "any gun @ ready"; a holster or the guard "any gun
     // @ ..." (none with bare hands); "free" "any gun @ free". A spot of both hands ("... + right hand ...") has none.
+    static readonly Dictionary<string, string> SpotFallback = new Dictionary<string, string> {
+        { "two magazines in hand", "magazine in hand" }, { "spare in hand, docked on the magazine", "magazine" },
+        { "spare in hand, pulling the magazine out", "magazine in hand" }, { "spare in hand, magazine still in the gun", "magazine in hand" },
+    };
     public static List<string> Fallbacks(string gun, string spot) {
         var list = new List<string>();
         string g = string.IsNullOrEmpty(gun) ? "no gun" : gun;
         if (string.IsNullOrEmpty(spot) || spot.Contains(" + ")) return list;
+        string older;   // 2026-11-14: a spare-magazine spot starts from the spot it was part of before (hand_poser.lua SPOT_FALLBACK)
+        if (SpotFallback.TryGetValue(spot, out older)) { list.Add(g + " @ " + older); return list; }
         string side = spot.StartsWith(RIGHT) ? RIGHT : "", p = spot.Substring(side.Length);
         string plain = p.StartsWith("ready") ? "ready" : (p == "free" && side == "") ? "free" : null;
         if (plain != null) {
