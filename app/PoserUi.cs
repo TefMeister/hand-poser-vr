@@ -33,7 +33,7 @@ partial class PoserUi : Form {
     bool autosaveLoaded, syncing;
 
     Label status, scriptNote, whereLine;   // whereLine: where the shown hand is, big (2026-11-09)
-    Button scriptButton, undoButton, redoButton;
+    Button scriptButton;
     TextBox filter, buildName;
     ListBox allJoints;
     ComboBox builds;
@@ -198,9 +198,8 @@ partial class PoserUi : Form {
         var bottom = new SkinPanel { Dock = DockStyle.Bottom, Height = 70, Tint = Color.FromArgb(120, Back) };
         Controls.Add(bottom);
         var one = Row(32);
-        undoButton = Btn("UNDO", (s, e) => { model.Undo(); AfterModelChange(); });
-        redoButton = Btn("REDO", (s, e) => { model.Redo(); AfterModelChange(); });
-        one.Controls.Add(undoButton); one.Controls.Add(redoButton);
+        // 2026-11-14 (Tefa: "undo and redo needs to be under each row"): the window's UNDO / REDO are gone; each joint row has
+        // its own ↶ / ↷ for the pose it is in (RowHistory.cs)
         one.Controls.Add(new SkinLabel { Text = "   build name:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         buildName = new TextBox { Width = 170, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.FixedSingle };
         one.Controls.Add(buildName);
@@ -249,6 +248,7 @@ partial class PoserUi : Form {
         if (dockShown) { dockBox.Step(step, use); magBox.Step(step, use); }   // the docked wrist's and the magazine's ticked sliders
         if (use.All(k => k.StartsWith("dock:"))) return;
         if (started) model.Mark();   // one undo step per press (its repeats included)
+        bool markRows = started;     // 2026-11-14: and one step on each row it moves (RowHistory.cs), below
         nudgeSaving = true;
         // every slider to step, once each, whether ticked on its own or through its finger's bar
         var targets = new HashSet<string>();
@@ -260,6 +260,7 @@ partial class PoserUi : Form {
         }
         foreach (var r in model.Rows) {
             if (!r.Known) continue;
+            if (markRows && (targets.Contains(r.Name + ":X") || targets.Contains(r.Name + ":Y") || targets.Contains(r.Name + ":Z"))) RowHistory.Mark(poseGun, r);
             // X / Y move toward the slider's left end, A / B toward its right end (HandAxes.cs, 2026-11-08)
             if (targets.Contains(r.Name + ":X")) r.X = PoseModel.Clamp(r.X + step * HandAxes.Sign(r.Name, 0));
             if (targets.Contains(r.Name + ":Y")) r.Y = PoseModel.Clamp(r.Y + step * HandAxes.Sign(r.Name, 1));
@@ -411,7 +412,7 @@ partial class PoserUi : Form {
         if (link.Folder == null) { scriptButton.Enabled = false; scriptNote.Text = ""; }
         else if (link.ScriptUpToDate()) { scriptButton.Enabled = false; scriptNote.Text = "script is in the game"; }
         else { scriptButton.Enabled = true; scriptNote.Text = link.ScriptInstalled() ? "an older script is in the game" : "script not in the game yet"; }
-        undoButton.Enabled = model.CanUndo; redoButton.Enabled = model.CanRedo;
+
     }
 
     // ---- changes ----------------------------------------------------------------------------------------------------------
@@ -611,7 +612,7 @@ partial class PoserUi : Form {
             value = new SkinLabel { AutoSize = true, ForeColor = Dim, Location = new Point(0, 11) };
             bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 34, Signed = true };
             BarWords();
-            bend.Pressed += () => { ui.GroupPressed(); bases = members.Select(r => Axis(r)).ToArray(); };
+            bend.Pressed += () => { ui.GroupPressed(); foreach (var r in members) RowHistory.Mark(ui.poseGun, r); bases = members.Select(r => Axis(r)).ToArray(); };
             bend.Scroll += (o, e) => Apply();
             bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
             tick = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked("group:" + group), Location = new Point(6, 6), Tag = "group:" + group };
@@ -664,16 +665,21 @@ partial class PoserUi : Form {
     // called by a row: a slider is about to move (snapshot + light up the children) / moved / let go
     internal void RowPressed(Row r) {
         model.Mark();
+        RowHistory.Mark(poseGun, r);   // 2026-11-14: the row's own step
         var below = model.Skeleton.Descendants(r.Name);
         foreach (var row in rows) row.Lit = below.Contains(row.Model.Name);
         UpdateStatus();
     }
     internal void RowMoved(Row r) { RequestSend(); }
     internal void RowReleased(Row r) {
-        foreach (var row in rows) row.Lit = false;
+        foreach (var row in rows) { row.Lit = false; if (row.Model == r) row.PullFromModel(); }   // (2026-11-14: its ↶ lights up)
         try { model.Autosave(); } catch (IOException) { }
     }
-    internal void RowReset(Row r) { Change(() => model.Set(r.Name, 0, 0, 0)); }
+    internal void RowReset(Row r) { RowHistory.Mark(poseGun, r); Change(() => model.Set(r.Name, 0, 0, 0)); }
+    // 2026-11-14: a row's ↶ / ↷ (RowHistory.cs): only that row, only in the pose it is in
+    internal void RowHistoryStep(Row r, bool redo) { double x, y, z; if (RowHistory.Step(poseGun, r, redo, out x, out y, out z)) Change(() => model.Set(r.Name, x, y, z)); }
+    internal bool RowCanUndo(Row r) { return RowHistory.CanUndo(poseGun, r.Name); }
+    internal bool RowCanRedo(Row r) { return RowHistory.CanRedo(poseGun, r.Name); }
     internal void RowRemove(Row r) { Change(() => model.Remove(r.Name)); }
 
     // ---- the demo for the test (--demo): add the left fingers, then turn index_0 to 30 degrees ----------------------

@@ -83,6 +83,16 @@ static class SelfTest {
               HandSpots.Line("spare in hand, docked on the magazine", "l", "LEMI") == "LEFT HAND: spare in hand, docked on the gun's magazine" &&
               HandSpots.Line("spare in hand, pulling the magazine out", "l", "LEMI") == "LEFT HAND: spare in hand, pulling the gun's magazine out" &&
               HandSpots.Line("spare in hand, magazine still in the gun", "l", "LEMI") == "LEFT HAND: spare in hand, the gun's magazine still in");
+        {   // 2026-11-14: each row's own undo / redo, per pose
+            var r = new Row { Name = "l_hand_index_0", X = 1, Y = 2, Z = 3, Known = true };
+            RowHistory.Mark("LEMI @ magazine", r); r.Z = 10;
+            double x, y, z;
+            bool back = RowHistory.Step("LEMI @ magazine", r, false, out x, out y, out z);
+            Check("a row's undo gives its own numbers back", back && x == 1 && y == 2 && z == 3);
+            Check("...and not in another pose", !RowHistory.CanUndo("LEMI @ slide", "l_hand_index_0") && !RowHistory.CanUndo("LEMI @ magazine", "l_hand_middle_0"));
+            r.Z = 3;
+            Check("redo takes it forward again, once", RowHistory.Step("LEMI @ magazine", r, true, out x, out y, out z) && z == 10 && !RowHistory.CanRedo("LEMI @ magazine", r.Name));
+        }
         Check("the magazine box is live with a magazine in the left hand (13, 16-19) and not otherwise",
               MagBox.Holding(13) && MagBox.Holding(16) && MagBox.Holding(19) && !MagBox.Holding(4) && !MagBox.Holding(15) && !MagBox.Holding(20));
         Check("a spare-magazine line starts from its older spot's pose",

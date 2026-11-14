@@ -15,6 +15,7 @@ partial class PoserUi {
         readonly Label values;
         readonly FancySlider[] sliders = new FancySlider[3];
         readonly CheckBox[] ticks = new CheckBox[3];   // 2026-10-25: ticked = the controller buttons step this slider (Nudge.cs)
+        readonly Button undo, redo;                    // 2026-11-14: the row's own undo / redo
         bool lit;
 
         public bool Lit { get { return lit; } set { if (lit != value) { lit = value; Tint = lit ? Color.FromArgb(215, PoserUi.Lit) : Color.FromArgb(160, Panel2); } } }
@@ -31,8 +32,11 @@ partial class PoserUi {
             values = new SkinLabel { AutoSize = true, Location = new Point(6, compact ? 22 : 24), ForeColor = Dim, Font = new Font(ui.Font.FontFamily, compact ? 7.5f : ui.Font.Size) };
             var reset = ui.Btn("RESET", (s, e) => ui.RowReset(Model), 56);
             var remove = ui.Btn("✕", (s, e) => ui.RowRemove(Model), 26);
-            reset.Height = remove.Height = 22;
-            Controls.Add(name); Controls.Add(values); Controls.Add(reset); Controls.Add(remove);
+            // 2026-11-14 (Tefa: "undo and redo needs to be under each row"): this row's own undo / redo (RowHistory.cs)
+            undo = ui.Btn("↶", (s, e) => ui.RowHistoryStep(Model, false), 30);
+            redo = ui.Btn("↷", (s, e) => ui.RowHistoryStep(Model, true), 30);
+            reset.Height = remove.Height = undo.Height = redo.Height = 22;
+            Controls.Add(name); Controls.Add(values); Controls.Add(reset); Controls.Add(remove); Controls.Add(undo); Controls.Add(redo);
             for (int i = 0; i < 3; i++) {
                 var s = new FancySlider { Minimum = (int)(PoseModel.MIN_DEG * SLIDER_STEPS_PER_DEG), Maximum = (int)(PoseModel.MAX_DEG * SLIDER_STEPS_PER_DEG), SmallChange = 5, LargeChange = 50, Height = compact ? 38 : 30, Signed = true };
                 int axis = i;
@@ -52,10 +56,12 @@ partial class PoserUi {
             SetBendAxis(bendAxis);
             Layout += (o, e) => {
                 int w = ClientSize.Width;
-                if (compact) {   // name | three tick + slider columns | RESET ✕
+                if (compact) {   // name | three tick + slider columns | ↶ ↷ RESET ✕
                     remove.Location = new Point(w - remove.Width - 6, 10);
                     reset.Location = new Point(remove.Left - reset.Width - 4, 10);
-                    int left = 150, sw = Math.Max(90, (reset.Left - 8 - left) / 3);
+                    redo.Location = new Point(reset.Left - redo.Width - 4, 10);
+                    undo.Location = new Point(redo.Left - undo.Width - 2, 10);
+                    int left = 150, sw = Math.Max(90, (undo.Left - 8 - left) / 3);
                     for (int i = 0; i < 3; i++) {
                         int c = HandAxes.Column(Model.Name, i);   // 2026-11-09: the thumb's tip shows its curl on the right, as the fingers
                         ticks[i].Location = new Point(left + c * sw, 7);
@@ -65,6 +71,8 @@ partial class PoserUi {
                 }
                 remove.Location = new Point(w - remove.Width - 6, 4);
                 reset.Location = new Point(remove.Left - reset.Width - 4, 4);
+                redo.Location = new Point(reset.Left - redo.Width - 4, 4);
+                undo.Location = new Point(redo.Left - undo.Width - 2, 4);
                 values.Location = new Point(6, 24);
                 int sw2 = (w - 12) / 3;
                 for (int i = 0; i < 3; i++) {
@@ -106,6 +114,7 @@ partial class PoserUi {
             }
             ui.syncing = false;
             ShowValues();
+            undo.Enabled = ui.RowCanUndo(Model); redo.Enabled = ui.RowCanRedo(Model);
         }
 
         int Clamp(int v) { return Math.Max(sliders[0].Minimum, Math.Min(sliders[0].Maximum, v)); }

@@ -12,7 +12,7 @@
 // left and right are -1 and +1, up and down on the stick are +5 and -5. that leaves A to use for selecting checkboxes ... and X for
 // unselect all", "please use these buttons in all helper apps"): NEW BUTTONS, the same in every helper:
 //   right stick right / left = +1 / -1, up / down = +5 / -5 on the ticked sliders (held past HOLD_MS: repeats every REPEAT_MS)
-//   Y = this window's UNDO button, B = its REDO button (any button whose text is "undo" / "redo"), X = every tick box unticked
+//   Y = every tick box unticked (2026-11-14; was: Y = UNDO, B = REDO, X = untick: undo / redo now only on the window's buttons)
 //   A = Window View's left click (it is no longer borrowed here); the grips are Window View's again (carrying windows)
 // Y / B / X act only in the window clicked last (the yellow strip); the stick needs a ticked box, as before. Needs Window View
 // 1.10 (the stick's left / right, header 644 bytes).
@@ -238,9 +238,9 @@ class Nudge : IDisposable {
         } catch (Exception) { Close(); return 0; }
         if (!ctrl || !Owner) { lastButtons = buttons; stickDir = 0; return 0; }
         if (mine) {   // Y undo, B redo, X untick everything: the window clicked last only
-            if (Pressed(buttons, B_Y)) ClickNamed("undo");
-            if (Pressed(buttons, B_B)) ClickNamed("redo");
-            if (Pressed(buttons, B_X)) UntickAll();
+            // 2026-11-14 (Tefa: "only the actual buttons on the window to do it ... X is right click for left controller anyway and Y
+            // can stay as clear all, that i use"): Y unticks every box; undo / redo only by the window's own buttons; X and B free
+            if (Pressed(buttons, B_Y)) UntickAll();
         }
         lastButtons = buttons;
         if (!anyTicked) { stickDir = 0; return 0; }
