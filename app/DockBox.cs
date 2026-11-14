@@ -134,9 +134,10 @@ class DockBox : SkinPanel {
     // the spots the plugin docks the left hand on (visceral-re8-vr src/dockpose.h)
     // (2026-11-08: 11 / 12 the slide at the back, 13 a magazine in the left hand, 104 the right hand on the bolt at the back)
     // 2026-11-14: 16-19 the spare-magazine spots, docked like the spots they came out of (the plugin's dockpose.cpp the same)
-    static bool Docked(int s) { return (s >= 3 && s <= 13) || (s >= 16 && s <= 19) || s == 101 || s == 102 || s == 104 || (s >= 1000 && s < 2000); }
+    // (16 and 19: the hand is free with its magazines, not docked: the plugin's dockpose.cpp the same, 2026-11-14)
+    static bool Docked(int s) { return (s >= 3 && s <= 13) || s == 17 || s == 18 || s == 101 || s == 102 || s == 104 || (s >= 1000 && s < 2000); }
     // an "at the back" spot with nothing saved starts from the spot it came from (the plugin falls back the same way)
-    static int BaseSpot(int s) { return s == 11 ? 3 : s == 12 ? 8 : s == 104 ? 102 : s == 17 ? 4 : (s == 16 || s == 18 || s == 19) ? 13 : -1; }
+    static int BaseSpot(int s) { return s == 11 ? 3 : s == 12 ? 8 : s == 104 ? 102 : s == 17 ? 4 : s == 18 ? 13 : -1; }
     static string SpotName(int s) {
         switch (s) {
         case 3: return "the slide / pump / bolt";
