@@ -17,7 +17,8 @@ class MagBox : SkinPanel {
     const double CM_PER_M = 100.0;
     const int STEPS = 10;                  // sliders count tenths of a centimetre / of a degree
     const double NUDGE_CM = 0.5;           // one controller press moves a position slider this far (an angle slider 1 degree)
-    public const int OPEN_H = 202, SHUT_H = 34;
+    public const int OPEN_H = 40 + 3 * ROW_H + 10, SHUT_H = 34;
+    const int ROW_H = 72;   // 2026-11-14: room for the bigger words above each slider
     static readonly Color Ink = Color.FromArgb(232, 232, 236), Dim = Color.FromArgb(150, 155, 170);
     // [hypothesis] the hold's own axes as named here (x right, y up, z forward); not yet checked in the game: if a slider moves
     // the magazine the other way, its Flip goes on (the file keeps its numbers)
@@ -53,7 +54,8 @@ class MagBox : SkinPanel {
             string key = TICK_PREFIX + a.Key;
             ax.Tick = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked(key), Tag = key };
             ax.Tick.CheckedChanged += (o, e) => ui.SetTicked(key, ax.Tick.Checked);
-            Controls.Add(new SkinLabel { Text = a.Words, AutoSize = true, ForeColor = Dim, Tag = "words:" + a.Key });
+            // 2026-11-14 (Tefa: "make the forward/backward, right/left headlines bigger ... the font is a bit too small and hard to read")
+            Controls.Add(new SkinLabel { Text = a.Words, AutoSize = true, ForeColor = Ink, Font = new Font("Segoe UI Semibold", 12.5f), Tag = "words:" + a.Key });
             Controls.Add(ax.Tick); Controls.Add(ax.Bar); Controls.Add(ax.Value);
             ShowValue(ax);
         }
@@ -109,11 +111,11 @@ class MagBox : SkinPanel {
         int w = ClientSize.Width, col = (w - 12) / 2;
         for (int i = 0; i < axes.Length; i++) {
             var a = axes[i];
-            int x = 6 + (i % 2) * col, y = 40 + (i / 2) * 54;
-            foreach (Control c in Controls) if ((c.Tag as string) == "words:" + a.Key) c.Location = new Point(x + 34, y - 2);
-            a.Tick.Location = new Point(x, y + 10);
-            a.Value.Location = new Point(x + col - 70, y + 14);
-            a.Bar.Location = new Point(x + 30, y + 12);
+            int x = 6 + (i % 2) * col, y = 40 + (i / 2) * ROW_H;   // 2026-11-14: the bigger words above each slider
+            foreach (Control c in Controls) if ((c.Tag as string) == "words:" + a.Key) c.Location = new Point(x + 34, y);
+            a.Tick.Location = new Point(x, y + 30);
+            a.Value.Location = new Point(x + col - 70, y + 34);
+            a.Bar.Location = new Point(x + 30, y + 32);
             a.Bar.Width = Math.Max(60, col - 30 - 76);
         }
     }
