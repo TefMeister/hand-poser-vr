@@ -93,6 +93,12 @@ static class SelfTest {
             r.Z = 3;
             Check("redo takes it forward again, once", RowHistory.Step("LEMI @ magazine", r, true, out x, out y, out z) && z == 10 && !RowHistory.CanRedo("LEMI @ magazine", r.Name));
         }
+        {   // 2026-11-14: the docked-wrist and magazine boxes' own undo / redo, per gun (and spot)
+            BoxHistory.Mark("mag:3046", new[] { 1, 2, 3, 4, 5, 6 });
+            var back = BoxHistory.Step("mag:3046", new[] { 9, 2, 3, 4, 5, 6 }, false);
+            Check("a box's undo gives all six sliders back", back != null && back[0] == 1 && back[5] == 6);
+            Check("...redo the way forward, and nothing for another gun", BoxHistory.CanRedo("mag:3046") && !BoxHistory.CanUndo("mag:3040"));
+        }
         Check("the magazine box is live with a magazine in the left hand (13, 16-19) and not otherwise",
               MagBox.Holding(13) && MagBox.Holding(16) && MagBox.Holding(19) && !MagBox.Holding(4) && !MagBox.Holding(15) && !MagBox.Holding(20));
         Check("a spare-magazine line starts from its older spot's pose",

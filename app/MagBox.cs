@@ -59,7 +59,39 @@ class MagBox : SkinPanel {
         }
         saveTimer.Interval = SAVE_DEBOUNCE_MS; saveTimer.Tick += (s, e) => { saveTimer.Stop(); Save(); };
         Layout += (o, e) => DoLayout();
+        MakeHistoryButtons(btn);
         SetOpen(open);
+    }
+    string HistKey { get { return loadedGun > 0 ? "mag:" + loadedGun : null; } }   // per gun
+
+    // ---- 2026-11-14: the box's own undo / redo (BoxHistory.cs) ---------------------------------------------------------------
+    Button undoB, redoB;
+    DateTime lastMark = DateTime.MinValue;
+    int[] Values() { var v = new int[axes.Length]; for (int i = 0; i < axes.Length; i++) v[i] = axes[i].Bar.Value; return v; }
+    void MarkNow() { if (HistKey != null) BoxHistory.Mark(HistKey, Values()); lastMark = DateTime.Now; ShowHistory(); }
+    void MarkStream() { if ((DateTime.Now - lastMark).TotalMilliseconds > 400) MarkNow(); else lastMark = DateTime.Now; }   // a held button: one step
+    void History(bool redo) {
+        if (HistKey == null) return;
+        var v = BoxHistory.Step(HistKey, Values(), redo);
+        if (v == null) return;
+        syncing = true;
+        for (int i = 0; i < axes.Length && i < v.Length; i++) { axes[i].Bar.Value = Math.Max(axes[i].Bar.Minimum, Math.Min(axes[i].Bar.Maximum, v[i])); ShowValue(axes[i]); }
+        syncing = false;
+        saveTimer.Stop(); saveTimer.Start();
+        ShowHistory();
+    }
+    void ShowHistory() {
+        if (undoB == null) return;
+        bool u = HistKey != null && BoxHistory.CanUndo(HistKey), r = HistKey != null && BoxHistory.CanRedo(HistKey);
+        if (undoB.Enabled != u) undoB.Enabled = u;
+        if (redoB.Enabled != r) redoB.Enabled = r;
+    }
+    void MakeHistoryButtons(Func<string, EventHandler, int, Button> btn) {
+        undoB = btn("↶", (s, e) => History(false), 34); redoB = btn("↷", (s, e) => History(true), 34);
+        Controls.Add(undoB); Controls.Add(redoB);
+        foreach (var a in axes) a.Bar.Pressed += () => MarkNow();
+        Layout += (o, e) => { redoB.Location = new Point(ClientSize.Width - redoB.Width - 8, 4); undoB.Location = new Point(redoB.Left - undoB.Width - 4, 4); };
+        ShowHistory();
     }
 
     public bool Open { get { return open; } }
@@ -122,6 +154,7 @@ class MagBox : SkinPanel {
                    : holding ? "the magazine in the left hand, this gun" : "take a magazine in the left hand to set it";
         where.ForeColor = holding ? Ink : Dim;
         foreach (var a in axes) if (a.Bar.Enabled != (gun > 0)) a.Bar.Enabled = gun > 0;
+        ShowHistory();
         if (gun > 0 && gun != loadedGun && !saveTimer.Enabled) Load(gun);
     }
 
@@ -147,6 +180,7 @@ class MagBox : SkinPanel {
         bool any = false;
         foreach (var a in axes) {
             if (!ticked.Contains(TICK_PREFIX + a.Key)) continue;
+            if (!any) MarkStream();   // 2026-11-14: a controller step is an undo step too
             double per = a.Unit == "cm" ? NUDGE_CM : 1.0;
             a.Bar.Value = Math.Max(a.Bar.Minimum, Math.Min(a.Bar.Maximum, a.Bar.Value + (int)Math.Round(n * per * STEPS)));
             ShowValue(a);

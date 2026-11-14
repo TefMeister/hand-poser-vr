@@ -232,9 +232,9 @@ partial class PoserUi : Form {
     }
     void ShowNudge() {
         if (nudgeNote == null) return;
-        nudgeNote.Text = ticked.Count == 0 ? "tick sliders to step them with the controller buttons: X -1, Y -5, A +1, B +5, a held grip repeats"
+        nudgeNote.Text = ticked.Count == 0 ? "tick sliders to step them with the right stick (left / right -1 / +1, up / down +5 / -5, held repeats); Y clears the ticks"
             : !nudge.Linked ? ticked.Count + " ticked: start Window View and click the left stick in to step them with the buttons"
-            : ticked.Count + " ticked: X -1, Y -5, A +1, B +5 (left grip repeats X / Y, right grip A / B), in Window View's controller mode";
+            : ticked.Count + " ticked: right stick -1 / +1 / +5 / -5 (held repeats), Y clears, in Window View's controller mode";
         nudgeNote.ForeColor = ticked.Count > 0 && nudge.Linked ? Good : Dim;
     }
     void NudgeTick() {
