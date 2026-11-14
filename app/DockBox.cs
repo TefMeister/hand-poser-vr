@@ -99,9 +99,10 @@ class DockBox : SkinPanel {
 
     // the spots the plugin docks the left hand on (visceral-re8-vr src/dockpose.h)
     // (2026-11-08: 11 / 12 the slide at the back, 13 a magazine in the left hand, 104 the right hand on the bolt at the back)
-    static bool Docked(int s) { return (s >= 3 && s <= 13) || s == 101 || s == 102 || s == 104 || (s >= 1000 && s < 2000); }
+    // 2026-11-14: 16-19 the spare-magazine spots, docked like the spots they came out of (the plugin's dockpose.cpp the same)
+    static bool Docked(int s) { return (s >= 3 && s <= 13) || (s >= 16 && s <= 19) || s == 101 || s == 102 || s == 104 || (s >= 1000 && s < 2000); }
     // an "at the back" spot with nothing saved starts from the spot it came from (the plugin falls back the same way)
-    static int BaseSpot(int s) { return s == 11 ? 3 : s == 12 ? 8 : s == 104 ? 102 : -1; }
+    static int BaseSpot(int s) { return s == 11 ? 3 : s == 12 ? 8 : s == 104 ? 102 : s == 17 ? 4 : (s == 16 || s == 18 || s == 19) ? 13 : -1; }
     static string SpotName(int s) {
         switch (s) {
         case 3: return "the slide / pump / bolt";
@@ -115,6 +116,10 @@ class DockBox : SkinPanel {
         case 11: return "the slide / pump / bolt, at the back";   // 2026-11-08
         case 12: return "the slide from the left, at the back";
         case 13: return "a magazine in the hand";
+        case 16: return "two magazines in the hand";   // 2026-11-14: the spare-magazine spots
+        case 17: return "the magazine, a spare in the hand";
+        case 18: return "the magazine coming out, a spare in the hand";
+        case 19: return "a spare in the hand, the gun's magazine still in";
         case 104: return "the bolt at the back (right hand)";
         case 101: return "the cover (right hand)";
         case 102: return "the bolt (right hand)";

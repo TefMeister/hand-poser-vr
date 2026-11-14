@@ -83,6 +83,8 @@ static class SelfTest {
               HandSpots.Line("spare in hand, docked on the magazine", "l", "LEMI") == "LEFT HAND: spare in hand, docked on the gun's magazine" &&
               HandSpots.Line("spare in hand, pulling the magazine out", "l", "LEMI") == "LEFT HAND: spare in hand, pulling the gun's magazine out" &&
               HandSpots.Line("spare in hand, magazine still in the gun", "l", "LEMI") == "LEFT HAND: spare in hand, the gun's magazine still in");
+        Check("the magazine box is live with a magazine in the left hand (13, 16-19) and not otherwise",
+              MagBox.Holding(13) && MagBox.Holding(16) && MagBox.Holding(19) && !MagBox.Holding(4) && !MagBox.Holding(15) && !MagBox.Holding(20));
         Check("a spare-magazine line starts from its older spot's pose",
               string.Join("|", HandSpots.Fallbacks("LEMI", "spare in hand, docked on the magazine").ToArray()) == "LEMI @ magazine" &&
               string.Join("|", HandSpots.Fallbacks("LEMI", "two magazines in hand").ToArray()) == "LEMI @ magazine in hand");
