@@ -45,7 +45,7 @@ class PoserUi : Form {
         Text = "Hand Poser";
         BackColor = Back; ForeColor = Ink;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(900, 1480);   // 2026-10-27: one hand's five fingers fit without scrolling
+        ClientSize = new Size(1720, 1180);   // 2026-11-14 (Tefa: "widen ... when they get too tall, just make them wider"): the top in a left column
         MinimumSize = new Size(600, 600);
         StartPosition = FormStartPosition.CenterScreen;
         string ico = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hand_poser.ico");
@@ -60,7 +60,7 @@ class PoserUi : Form {
         rowsPanel.BringToFront();
 
         string folder = gameArg ?? settings.Get("game", null);
-        if (!GameLink.LooksLikeGame(folder)) folder = GameLink.FindRunningGame();
+        if (!GameLink.LooksLikeGame(folder) && gameArg == null) folder = GameLink.FindRunningGame();   // 2026-11-14: a --game folder is never swapped for the running game (tests)
         if (GameLink.LooksLikeGame(folder)) UseFolder(folder, gameArg == null);
 
         poll.Interval = POLL_MS; poll.Tick += (s, e) => Poll(); poll.Start();
@@ -87,7 +87,7 @@ class PoserUi : Form {
     }
 
     void BuildTop() {
-        var top = new SkinPanel { Dock = DockStyle.Top, Height = 276, Tint = Color.FromArgb(120, Back) };
+        var top = new SkinPanel { Dock = DockStyle.Left, Width = 820, AutoScroll = true, Tint = Color.FromArgb(120, Back) };
         Controls.Add(top);
 
         status = new SkinLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(8, 4, 0, 0), ForeColor = Dim };
@@ -296,7 +296,7 @@ class PoserUi : Form {
     // ---- talking to the game --------------------------------------------------------------------------------------------
     void Poll() {
         if (link.Folder == null) {
-            if ((DateTime.Now - lastFind).TotalMilliseconds > FIND_GAME_EVERY_MS) {
+            if ((DateTime.Now - lastFind).TotalMilliseconds > FIND_GAME_EVERY_MS && !Environment.CommandLine.Contains("--game")) {   // 2026-11-14: not in a --game run (tests)
                 lastFind = DateTime.Now;
                 string f = GameLink.FindRunningGame();
                 if (f != null) UseFolder(f, true);
