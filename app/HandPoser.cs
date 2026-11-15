@@ -107,6 +107,17 @@ class GameLink {
         if (File.Exists(CommandFile)) File.Replace(tmp, CommandFile, null); else File.Move(tmp, CommandFile);
     }
 
+    // 2026-11-15 (The Darkness): a game whose own code speaks the two files (no Lua script, no REFramework). The port's
+    // C++ link makes reframework\data\hand_poser\ beside its exe, so it is found like any other game, but there is no
+    // script to put in. Known by its exe in the folder; the RE games are untouched.
+    static readonly string[] NativeGameExes = { "darknessrecomp.exe" };
+    public static bool IsNativeGame(string folder) {
+        if (folder == null) return false;
+        foreach (var exe in NativeGameExes) if (File.Exists(Path.Combine(folder, exe))) return true;
+        return false;
+    }
+    public bool NoScript { get { return IsNativeGame(Folder); } }
+
     public bool ScriptInstalled() { return Folder != null && File.Exists(ScriptTarget); }
 
     public bool ScriptUpToDate() {
@@ -114,6 +125,7 @@ class GameLink {
     }
 
     public void InstallScript() {
+        if (NoScript) throw new InvalidOperationException("this game needs no script: its own code talks to Hand Poser");
         if (!File.Exists(ScriptSource)) throw new FileNotFoundException("hand_poser.lua is not next to HandPoser.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(ScriptTarget));
         File.Copy(ScriptSource, ScriptTarget, true);

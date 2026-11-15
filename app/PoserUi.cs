@@ -406,10 +406,12 @@ partial class PoserUi : Form {
         bool alive = link.Folder != null && link.ScriptAlive();
         whereLine.Text = dockShown && model.Connected ? HandSpots.Line(model.Spot, shownSide, model.Gun) : "";
         if (link.Folder == null) { status.Text = "no game found yet: start an RE game with REFramework, or pick its folder"; status.ForeColor = Bad; }
-        else if (!alive) { status.Text = Path.GetFileName(link.Folder) + " · waiting for the script in the game"; status.ForeColor = Dim; }
-        else if (!model.Connected) { status.Text = model.Game + " · script running, no character yet (load into the game)"; status.ForeColor = Dim; }
+        else if (!alive) { status.Text = Path.GetFileName(link.Folder) + (link.NoScript ? " · waiting for the game (its Hand Poser link switched on)" : " · waiting for the script in the game"); status.ForeColor = Dim; }
+        else if (!model.Connected) { status.Text = model.Game + (link.NoScript ? " · game running" : " · script running") + ", no character yet (load into the game)"; status.ForeColor = Dim; }
         else { status.Text = model.Game + " · " + model.Character + " · connected · " + model.Rows.Count + " held" + (perGun && poseGun != null ? " · pose of: " + GunWords(poseGun) : "") + (model.LastError != "" ? " · " + model.LastError : ""); status.ForeColor = Good; }
+        scriptButton.Visible = !link.NoScript;   // 2026-11-15: no script to put into The Darkness
         if (link.Folder == null) { scriptButton.Enabled = false; scriptNote.Text = ""; }
+        else if (link.NoScript) { scriptButton.Enabled = false; scriptNote.Text = "no script needed: the game talks to Hand Poser itself"; }
         else if (link.ScriptUpToDate()) { scriptButton.Enabled = false; scriptNote.Text = "script is in the game"; }
         else { scriptButton.Enabled = true; scriptNote.Text = link.ScriptInstalled() ? "an older script is in the game" : "script not in the game yet"; }
 
