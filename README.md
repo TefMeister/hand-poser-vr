@@ -60,12 +60,12 @@ Builds and the autosave live in `%APPDATA%\HandPoserVR\<game>\`, one folder per 
 
 ## Posing from outside the window (a robot session, a script)
 
-Write `reframework\data\hand_poseremote.json` in the game folder: `{"seq": 7, "set": {"L_IndexF1": [0, -5, -60],
+Write `reframework\data\hand_poser\remote.json` in the game folder: `{"seq": 7, "set": {"L_IndexF1": [0, -5, -60],
 "L_Thumb2.y": 30}}` (a new `seq` each time; a joint gets three angles in degrees, or `joint.x` / `.y` / `.z` one number).
 The window takes it exactly like a slider move: the rows change, the game gets the pose at once, it is autosaved under the
 gun and spot the hand is at, UNDO takes it back. The answer is `remote_done.json` beside it (`ok`, how many were set, which
 pose file it went to, a note naming any joint it did not know). Added 2026-11-23 so a session with nobody at the mouse
-poses THROUGH the window instead of writing pose files around it; `testemote_test.sh` checks it against the pretend
+poses THROUGH the window instead of writing pose files around it; `test\remote_test.sh` checks it against the pretend
 game `[verified-live 2026-11-23, pretend game, 4 checks]`; not yet used on a real game.
 
 ## How it works
