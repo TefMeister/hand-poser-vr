@@ -320,6 +320,7 @@ partial class PoserUi : Form {
         bool village = DockBox.HasVisceral(link.Folder);
         if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = village; SizeTop(); }
         if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); magBox.Poll(link.Folder); }
+        RemotePoll();   // 2026-11-23 (Remote.cs): a pose set from outside, as if the sliders had moved
         UpdateStatus();
         if (demo) Demo();
     }
