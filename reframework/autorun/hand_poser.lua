@@ -425,6 +425,8 @@ local function right_spot()
     if v == 2 then return "right hand on the bolt" end
     if v == 3 then return "right hand over the hammer" end   -- 2026-11-06: the Wolfsbane's right hand lifted over the hammer, the cover open (Visceral RE8 b075)
     if v == 4 then return "right hand on the bolt at the back" end   -- 2026-11-08: from the bolt's click at the back until it is home
+    if v == 5 then return "right hand, thumb on the latch" end
+    if v == 6 then return "right hand, the latch flicked open" end   -- 2026-11-23: the GM 79's latch flicked open with B (Visceral RE8 b152)
     if v ~= 0 then return "" end
     -- 2026-11-09 (Visceral RE8 b104): the right hand in a gun zone while the left holds the gun, else at a holster
     local area = AREA_NAMES[slot_code(RIGHT_AREA_SLOT)]
@@ -633,18 +635,32 @@ end
 -- window) gives the right index finger's pulled angles; on every RT press it eases from where it is (our held pose, or the game's
 -- own grip) to them, and back on release. Visceral RE8 reports RT as pressed / not pressed only, so the finger eases over
 -- TRIGGER_EASE_SEC rather than following the trigger's travel. A gun with no such pose: nothing changes.
-local TRIGGER_EASE_SEC, PULLED_CHECK_SEC = 0.06, 2.0
+local TRIGGER_EASE_SEC, PULLED_CHECK_SEC = 0.09, 2.0
 local pulled, pulled_gun, pulled_t, trig_k, trig_t = {}, nil, -100, 0.0, nil
+-- 2026-11-23 (Tefa: "right hand index finger on the trigger ... index finger moving with RT press on the trigger", every gun): a gun
+-- with no "trigger pulled" pose of its own gets a built one: the index finger as it sits when the press begins, bent a little
+-- further at each joint (Village's right-hand joints: a bend is a positive z). The loader gives no trigger travel (pressed or not
+-- only: looked for 2026-11-23), so the finger still goes by time, TRIGGER_EASE_SEC, not by the squeeze.
+local PULLED_AUTO_DEG = { ["R_IndexF1"] = 5.0, ["R_IndexF2"] = 22.0, ["R_IndexF3"] = 12.0 }
+local pulled_auto = false
+local PULLED_AUTO_ON = false   -- 2026-11-23: off: Visceral RE8 b152 bends the trigger finger itself, last in the frame (this script's write never showed there)
 local trig_base = {}   -- joint name -> Vector3f, the finger as it was when the press began (its blend's start)
 local function is_trigger_finger(name) return name:sub(1, 2):lower() == "r_" and name:lower():find("index", 1, true) ~= nil end
 local function load_pulled()
     if gun_now == pulled_gun and now() - pulled_t < PULLED_CHECK_SEC then return end
+    local built = (pulled_auto and gun_now == pulled_gun) and pulled or nil   -- a built pose stays through the 2 s re-read (it was wiped mid-pull)
     pulled_gun, pulled_t, pulled = gun_now, now(), {}
+    pulled_auto = false
     if gun_now == "" then return end
+    pulled_auto = PULLED_AUTO_ON   -- until a pose of its own is found below
+    if built then pulled = built end
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(gun_now .. " @ trigger pulled") .. ".json")
     if not ok or type(d) ~= "table" or type(d.joints) ~= "table" then return end
     for name, v in pairs(d.joints) do
-        if is_trigger_finger(name) and type(v) == "table" and #v == 3 then pulled[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+        if is_trigger_finger(name) and type(v) == "table" and #v == 3 then
+            if pulled_auto then pulled = {} end   -- its own pose: the built one goes
+            pulled[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG); pulled_auto = false
+        end
     end
 end
 local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
@@ -659,10 +675,19 @@ local function pulled_frame(first_pass, right_on)
         local step = dt / TRIGGER_EASE_SEC
         if trig_k < want then trig_k = math.min(want, trig_k + step) else trig_k = math.max(want, trig_k - step) end
     end
+    if first_pass then local n = 0; for _ in pairs(pulled) do n = n + 1 end; _G.hand_poser_trigger = string.format("k %.2f, pulled joints %d, built %s, right on %s, rt %s", trig_k, n, tostring(pulled_auto), tostring(right_on), tostring(rt_held())) end   -- for a look from outside
+    if pulled_auto and target and first_pass and trig_k > 0.0 and (was <= 0.0 or next(pulled) == nil) then   -- the built pose, from where the finger is now
+        for name, add in pairs(PULLED_AUTO_DEG) do
+            local j = target.by_name[name]
+            local ok, e = j and pcall(function() return j:call("get_LocalEulerAngle") end)
+            local b = held[name] or (ok and e) or nil
+            if b then pulled[name] = Vector3f.new(b.x, b.y, b.z + add / DEG) end
+        end
+    end
     if not target or next(pulled) == nil then trig_base = {}; return end
     -- the finger's start is read once, as a press begins (the game's own angle, or our held one), so a game that leaves the
     -- joint alone between frames cannot make the blend creep; on the way back it is written exactly once more, then let go
-    if first_pass and was <= 0.0 and trig_k > 0.0 then
+    if first_pass and trig_k > 0.0 and (was <= 0.0 or next(trig_base) == nil) then
         trig_base = {}
         for name, _ in pairs(pulled) do
             local j = target.by_name[name]

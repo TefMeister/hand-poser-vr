@@ -233,6 +233,38 @@ class PoseModel {
         }
     }
 
+    // 2026-11-23: joints of the hand that is NOT at the spot being posed belong to the gun's own pose (the game script takes that
+    // hand from the gun's file, and KeepOtherHand reads it back from there): a change to them made while the window is on a spot
+    // (a right-hand finger moved while the left hand is "free", "ready at ...", on the magazine ...) was kept only in the spot's
+    // file, where nothing reads it, and was gone at the next spot change. They go into the gun's own file as well.
+    public void SaveOtherHandToGun() {
+        if (GunPoseFile == null) return;
+        string gunFile = GunFile(Gun ?? "");
+        if (string.Equals(gunFile, GunPoseFile, StringComparison.OrdinalIgnoreCase)) return;
+        string sp = Spot ?? "";
+        bool ownR = sp.Contains("right hand") || sp.Contains("trigger pulled") || sp == HandSpots.GUARD;
+        bool ownL = sp != "" && !sp.StartsWith("right hand") && !sp.StartsWith("trigger pulled");
+        try {
+            Dictionary<string, object> o = null;
+            if (File.Exists(gunFile)) o = Json.Obj(Json.Parse(File.ReadAllText(gunFile)));
+            if (o == null) o = Json.Obj(Json.Parse(Json.Write(ToJson())));
+            object jv; var j = o.TryGetValue("joints", out jv) ? Json.Obj(jv) : null;
+            if (j == null) { j = new Dictionary<string, object>(); o["joints"] = j; }
+            bool any = false;
+            foreach (var r in Rows) {
+                if (!r.Known) continue;
+                string n = r.Name.ToLowerInvariant();
+                bool isL = n.StartsWith("l_"), isR = n.StartsWith("r_");
+                if (!((isL && !ownL) || (isR && !ownR))) continue;
+                j[r.Name] = new List<object> { r.X, r.Y, r.Z }; any = true;
+            }
+            if (!any) return;
+            Directory.CreateDirectory(GunsDir);
+            File.WriteAllText(gunFile, Json.Write(o));
+            MirrorOne(gunFile);
+        } catch (Exception) { }
+    }
+
     public void Autosave() {
         Directory.CreateDirectory(GameDir);
         File.WriteAllText(AutosaveFile, Json.Write(ToJson()));
@@ -241,6 +273,7 @@ class PoseModel {
             File.WriteAllText(GunPoseFile, Json.Write(ToJson()));
             MirrorOne(GunPoseFile);
             ShareLeft(GunPoseFile);
+            SaveOtherHandToGun();
         }
     }
 
