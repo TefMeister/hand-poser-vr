@@ -158,6 +158,10 @@ partial class PoserUi : Form {
         // docked controls stack bottom-up in the order added, so add in reverse
         top.Controls.Add(nudgeRow);
         top.Controls.Add(magBox);
+        // 2026-11-23: the spare magazine's place beside the held one (MagBox.cs, its second kind)
+        spareBox = new MagBox(this, (t, h, w) => Btn(t, h, w), settings.Get("spare_open", "1") == "1", true) { Visible = false };
+        nudge.Section(spareBox, "spare"); spareBox.HeightChanged += () => { settings.Set("spare_open", spareBox.Open ? "1" : "0"); SizeTop(); };
+        top.Controls.Add(spareBox);
         top.Controls.Add(dockBox);
         top.Controls.Add(listHolder);
         top.Controls.Add(filterRow);
@@ -174,7 +178,7 @@ partial class PoserUi : Form {
     FlowLayoutPanel filterRow;
     Panel listHolder;
     Button jointsButton;
-    DockBox dockBox; MagBox magBox;
+    DockBox dockBox; MagBox magBox, spareBox;
     bool jointsOpen, dockShown;   // kept here: a control's Visible reads false until the window itself is shown
     void ShowJointList(bool on) {
         jointsOpen = on;
@@ -188,7 +192,7 @@ partial class PoserUi : Form {
         int h = topPanel.Padding.Vertical + 8;
         foreach (Control c in topPanel.Controls) {
             if ((c == filterRow || c == listHolder) && !jointsOpen) continue;
-            if ((c == dockBox || c == magBox) && !dockShown) continue;
+            if ((c == dockBox || c == magBox || c == spareBox) && !dockShown) continue;
             h += c.Height;
         }
         topPanel.Height = h;
@@ -245,7 +249,7 @@ partial class PoserUi : Form {
             return;
         }
         var use = nudge.Filter(ticked);   // 2026-11-08: only the part clicked last (Nudge.cs), when it has ticks
-        if (dockShown) { dockBox.Step(step, use); magBox.Step(step, use); }   // the docked wrist's and the magazine's ticked sliders
+        if (dockShown) { dockBox.Step(step, use); magBox.Step(step, use); spareBox.Step(step, use); }   // the docked wrist's and the magazine's ticked sliders
         if (use.All(k => k.StartsWith("dock:"))) return;
         if (started) model.Mark();   // one undo step per press (its repeats included)
         bool markRows = started;     // 2026-11-14: and one step on each row it moves (RowHistory.cs), below
@@ -318,8 +322,8 @@ partial class PoserUi : Form {
             }
         }
         bool village = DockBox.HasVisceral(link.Folder);
-        if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = village; SizeTop(); }
-        if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); magBox.Poll(link.Folder); }
+        if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = spareBox.Visible = village; SizeTop(); }
+        if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); magBox.Poll(link.Folder); spareBox.Poll(link.Folder); }
         RemotePoll();   // 2026-11-23 (Remote.cs): a pose set from outside, as if the sliders had moved
         UpdateStatus();
         if (demo) Demo();

@@ -68,6 +68,12 @@ pose file it went to, a note naming any joint it did not know). Added 2026-11-23
 poses THROUGH the window instead of writing pose files around it; `test\remote_test.sh` checks it against the pretend
 game `[verified-live 2026-11-23, pretend game, 4 checks]`; not yet used on a real game.
 
+**The spare magazine (2026-11-23).** With Visceral RE8, a third box under MAGAZINE IN HAND, **SPARE MAGAZINE**, moves and turns
+the spare that is carried beside the held or seated magazine (six sliders, one set for every gun; the game shows a change
+within half a second, Visceral RE8 b146 and up). Until then that place could only be set in the game's own REFramework menu.
+The remote input takes it too: `"spare": {"x": 3, "rz": 20}`, and the magazine box as `"mag": {"y": 3.5, "pitch": 113}`.
+`[verified-live 2026-11-23, Village, robot hands, n=1: twelve places set from outside, each seen in the game]`
+
 ## How it works
 
 - **The window** (`app\`, C#) writes `command.json` into the game's `reframework\data\hand_poser\` folder on every change:

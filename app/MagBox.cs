@@ -23,7 +23,11 @@ class MagBox : SkinPanel {
     // [hypothesis] the hold's own axes as named here (x right, y up, z forward); not yet checked in the game: if a slider moves
     // the magazine the other way, its Flip goes on (the file keeps its numbers)
     class Axis { public string Key, Words, Unit, L, R; public double Range; public bool Flip; public FancySlider Bar; public Label Value; public CheckBox Tick; }
-    readonly Axis[] axes = {
+    // 2026-11-23: the same box a second time for the SPARE magazine's place beside the held one (Visceral RE8's mag2.json "spare":
+    // move in cm, turn in degrees, in the held magazine's own axes; one set for every gun; the game script reads the file again
+    // twice a second while a spare is drawn). Until now that place could only be set in the game's own REFramework menu.
+    readonly bool spare;
+    Axis[] axes = {
         new Axis { Key = "z", Words = "back / forward", L = "BACK", R = "FORWARD", Unit = "cm", Range = 10 },
         new Axis { Key = "pitch", Words = "tilt down / up", L = "DOWN", R = "UP", Unit = "°", Range = 180 },
         new Axis { Key = "y", Words = "down / up", L = "DOWN", R = "UP", Unit = "cm", Range = 10 },
@@ -39,7 +43,15 @@ class MagBox : SkinPanel {
     bool holding, open = true, syncing;
     public event Action HeightChanged;
 
-    public MagBox(PoserUi ui, Func<string, EventHandler, int, Button> btn, bool startOpen) {
+    public MagBox(PoserUi ui, Func<string, EventHandler, int, Button> btn, bool startOpen, bool spareBox = false) {
+        spare = spareBox;
+        if (spare) axes = new[] {
+            new Axis { Key = "z", Words = "move along Z", L = "-", R = "+", Unit = "cm", Range = 10 },
+            new Axis { Key = "rx", Words = "turn about X", L = "-", R = "+", Unit = "°", Range = 180 },
+            new Axis { Key = "y", Words = "move along Y", L = "-", R = "+", Unit = "cm", Range = 10 },
+            new Axis { Key = "ry", Words = "turn about Y", L = "-", R = "+", Unit = "°", Range = 180 },
+            new Axis { Key = "x", Words = "move along X", L = "-", R = "+", Unit = "cm", Range = 10 },
+            new Axis { Key = "rz", Words = "turn about Z", L = "-", R = "+", Unit = "°", Range = 180 } };
         open = startOpen;
         Dock = DockStyle.Top; Tint = Color.FromArgb(150, 44, 36, 66); Padding = new Padding(6, 2, 6, 2);
         fold = btn("", (s, e) => SetOpen(!open), 0);
@@ -51,7 +63,7 @@ class MagBox : SkinPanel {
             ax.Bar = new FancySlider { Minimum = (int)(-a.Range * STEPS), Maximum = (int)(a.Range * STEPS), SmallChange = 5, LargeChange = 50, Height = 38, Signed = true, LeftText = a.L, RightText = a.R };
             ax.Bar.Scroll += (o, e) => { ShowValue(ax); if (!syncing) { saveTimer.Stop(); saveTimer.Start(); } };
             ax.Value = new SkinLabel { AutoSize = true, ForeColor = Ink };
-            string key = TICK_PREFIX + a.Key;
+            string key = TickPrefix + a.Key;
             ax.Tick = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked(key), Tag = key };
             ax.Tick.CheckedChanged += (o, e) => ui.SetTicked(key, ax.Tick.Checked);
             // 2026-11-14 (Tefa: "make the forward/backward, right/left headlines bigger ... the font is a bit too small and hard to read")
@@ -64,7 +76,9 @@ class MagBox : SkinPanel {
         MakeHistoryButtons(btn);
         SetOpen(open);
     }
-    string HistKey { get { return loadedGun > 0 ? "mag:" + loadedGun : null; } }   // per gun
+    string HistKey { get { return loadedGun <= 0 ? null : spare ? "spare" : "mag:" + loadedGun; } }   // per gun (the spare: one for all)
+    string TickPrefix { get { return spare ? "dock:spare-" : TICK_PREFIX; } }
+    string Title { get { return spare ? "SPARE MAGAZINE" : "MAGAZINE IN HAND"; } }
 
     // ---- 2026-11-14: the box's own undo / redo (BoxHistory.cs) ---------------------------------------------------------------
     Button undoB, redoB;
@@ -100,7 +114,7 @@ class MagBox : SkinPanel {
 
     void SetOpen(bool on) {
         open = on;
-        fold.Text = open ? "MAGAZINE IN HAND  ▲" : "MAGAZINE IN HAND  ▼";
+        fold.Text = Title + (open ? "  ▲" : "  ▼");
         foreach (Control c in Controls) if (c != fold && c != where) c.Visible = open;
         Height = open ? OPEN_H : SHUT_H;
         if (HeightChanged != null) HeightChanged();
@@ -127,7 +141,9 @@ class MagBox : SkinPanel {
 
     string DataDir { get { return folder == null ? null : Path.Combine(folder, "reframework", "data", "visceral_re8"); } }
     string StatePath { get { return DataDir == null ? null : Path.Combine(DataDir, "zones_state.json"); } }
-    public string HoldPath { get { return DataDir == null ? null : Path.Combine(DataDir, "mag_hold.json"); } }
+    public string HoldPath { get { return DataDir == null ? null : Path.Combine(DataDir, spare ? "mag2.json" : "mag_hold.json"); } }
+    // a spare is in the hand beside another magazine: spots 16 (two in the hand), 17, 18 and 19
+    public static bool HoldingSpare(int spot) { return spot >= 16 && spot <= 19; }
 
     Dictionary<string, object> LoadAll() {
         try { if (HoldPath != null && File.Exists(HoldPath)) { var o = Json.Obj(Json.Parse(File.ReadAllText(HoldPath))); if (o != null) return o; } } catch (Exception) { }
@@ -151,8 +167,9 @@ class MagBox : SkinPanel {
                 }
             }
         } catch (Exception) { return; }   // caught mid-write: the next poll gets it
-        holding = alive && gun > 0 && Holding(spot);
+        holding = alive && gun > 0 && (spare ? HoldingSpare(spot) : Holding(spot));
         where.Text = !alive ? "the game's zones script is not running" : gun <= 0 ? "no gun in hand"
+                   : spare ? (holding ? "the spare beside the held magazine, every gun" : "take a spare from the pouch, the gun's magazine still in, to set it")
                    : holding ? "the magazine in the left hand, this gun" : "take a magazine in the left hand to set it";
         where.ForeColor = holding ? Ink : Dim;
         foreach (var a in axes) if (a.Bar.Enabled != (gun > 0)) a.Bar.Enabled = gun > 0;
@@ -163,12 +180,12 @@ class MagBox : SkinPanel {
     void Load(int g) {
         loadedGun = g;
         object e;
-        var mine = LoadAll().TryGetValue(g.ToString(), out e) ? Json.Obj(e) : null;
+        var mine = LoadAll().TryGetValue(spare ? "spare" : g.ToString(), out e) ? Json.Obj(e) : null;
         syncing = true;
         foreach (var a in axes) {
             object v;
             double n = mine != null && mine.TryGetValue(a.Key, out v) ? Json.Num(v, 0) : 0;
-            if (a.Unit == "cm") n *= CM_PER_M;
+            if (a.Unit == "cm" && !spare) n *= CM_PER_M;   // mag_hold.json keeps metres, mag2.json centimetres
             if (a.Flip) n = -n;
             a.Bar.Value = Math.Max(a.Bar.Minimum, Math.Min(a.Bar.Maximum, (int)Math.Round(n * STEPS)));
             ShowValue(a);
@@ -181,7 +198,7 @@ class MagBox : SkinPanel {
         if (gun <= 0) return false;
         bool any = false;
         foreach (var a in axes) {
-            if (!ticked.Contains(TICK_PREFIX + a.Key)) continue;
+            if (!ticked.Contains(TickPrefix + a.Key)) continue;
             if (!any) MarkStream();   // 2026-11-14: a controller step is an undo step too
             double per = a.Unit == "cm" ? NUDGE_CM : 1.0;
             a.Bar.Value = Math.Max(a.Bar.Minimum, Math.Min(a.Bar.Maximum, a.Bar.Value + (int)Math.Round(n * per * STEPS)));
@@ -192,6 +209,23 @@ class MagBox : SkinPanel {
         return any;
     }
 
+    // 2026-11-23 (Remote.cs): the same numbers set from outside the window, in the box's own units (cm, degrees)
+    public bool RemoteSet(Dictionary<string, object> d, out string note) {
+        note = "";
+        if (gun <= 0 || loadedGun != gun) { note = "magazine box: no magazine in the left hand"; return false; }
+        bool any = false;
+        foreach (var a in axes) {
+            object v;
+            if (!d.TryGetValue(a.Key, out v)) continue;
+            if (!any) MarkStream();
+            a.Bar.Value = Math.Max(a.Bar.Minimum, Math.Min(a.Bar.Maximum, (int)Math.Round(Json.Num(v, 0) * STEPS)));
+            ShowValue(a);
+            any = true;
+        }
+        if (any) { saveTimer.Stop(); saveTimer.Start(); } else note = "magazine box: wants x y z (cm) yaw pitch roll (degrees)";
+        return any;
+    }
+
     void Save() {
         if (HoldPath == null || gun <= 0 || loadedGun != gun) return;
         var all = LoadAll();
@@ -199,9 +233,9 @@ class MagBox : SkinPanel {
         foreach (var a in axes) {
             double n = a.Bar.Value / (double)STEPS;
             if (a.Flip) n = -n;
-            mine[a.Key] = a.Unit == "cm" ? Math.Round(n / CM_PER_M, 4) : Math.Round(n, 2);
+            mine[a.Key] = a.Unit == "cm" && !spare ? Math.Round(n / CM_PER_M, 4) : Math.Round(n, 2);
         }
-        all[gun.ToString()] = mine;
+        all[spare ? "spare" : gun.ToString()] = mine;
         try {
             Directory.CreateDirectory(DataDir);
             string tmp = HoldPath + ".tmp";

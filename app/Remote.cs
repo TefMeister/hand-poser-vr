@@ -7,6 +7,8 @@
 //   <game>\reframework\data\hand_poser\remote.json   {"seq": 7, "set": {"L_IndexF1": [0, -5, -60], "L_Thumb2.y": 30}}
 //       seq   a NEW number each time (the same number twice is read once)
 //       set   joint -> [x, y, z] in degrees, or "joint.x" / ".y" / ".z" -> one number; a joint with no row yet gets one
+//       mag   the MAGAZINE IN HAND box: x y z (cm), yaw pitch roll (degrees)
+//       spare the spare magazine's place beside the held one (Visceral RE8's mag2.json): x y z (cm), rx ry rz (degrees)
 //   <game>\reframework\data\hand_poser\remote_done.json   {"seq": 7, "ok": true, "pose": "<gun> @ <spot>", "held": 31, "note": ""}
 //
 // Nothing is applied before the window is connected and (with ONE POSE PER GUN ticked) knows which gun and spot it is posing.
@@ -56,7 +58,15 @@ partial class PoserUi {
                     r.Known = true; r.Moved = true; n++;
                 }
             });
-        } else note = "nothing to set";
+        }
+        // the MAGAZINE IN HAND box (the hold of the magazine in the left hand, this gun's): "mag": {"x": 0, "y": 3.5, "pitch": 113}
+        object mv; var mag = o.TryGetValue("mag", out mv) ? Json.Obj(mv) : null;
+        if (mag != null) { string mn; if (magBox.RemoteSet(mag, out mn)) n++; note += mn == "" ? "" : mn + "; "; }
+        // the SPARE magazine's place beside the held one (Visceral RE8's mag2.json "spare": move cm, turn deg, the magazine's own
+        // axes), through the window's SPARE MAGAZINE box. "spare": {"x": 3, "rz": 20}
+        object pv; var spare = o.TryGetValue("spare", out pv) ? Json.Obj(pv) : null;
+        if (spare != null) { string sn; if (spareBox.RemoteSet(spare, out sn)) n++; note += sn == "" ? "" : sn + "; "; }
+        if (n == 0 && note == "") note = "nothing to set";
         string done = "{\"seq\": " + seq.ToString(System.Globalization.CultureInfo.InvariantCulture) + ", \"ok\": " + (n > 0 ? "true" : "false") +
                       ", \"set\": " + n + ", \"pose\": " + Json.Write(perGun ? (poseGun ?? "") : "") + ", \"held\": " + model.Rows.Count +
                       ", \"note\": " + Json.Write(note.Trim()) + "}";
