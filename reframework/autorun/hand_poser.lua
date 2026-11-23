@@ -43,8 +43,27 @@ local last_state_t = 0
 -- "" = no gun (or a game where it cannot be read: then every pose is the "no gun" one)
 local gun_now, gun_checked_frame = "", -100
 -- 2026-11-01: Visceral RE2 / RE3's bridge slots: the gun in hand's WP number, the left hand on the gun (1)
-local VB_GUN, VB_LEFT = 84, 539
-if tostring(game):lower() == "re3" then VB_GUN, VB_LEFT = 57, 58 end
+local VB_GUN, VB_LEFT = 84, 539   -- (2026-11-23: the rebuilt RE3 uses the same slots as RE2; its old 57 / 58 are gone)
+-- 2026-11-23 (Tefa: "no to a plan for re2/re3, just do your thing"): ONE way to ask a Visceral bridge, in Village's slot numbers.
+-- Village: its own bridge. RE2 / RE3 (the shared visceral_bridge, src/guns/stage.h): LT 3 and RT 5 are the same slots; the left
+-- hand's stage (Village's spot numbers) is their slot 649, the magazine pull 650, the left hand on the gun 539; every other
+-- Village slot (areas, holsters, the right hand's spot, finger clips) reads 0 there until those games write one.
+local VB_MAP = { [3] = 3, [5] = 5, [153] = 649, [279] = 650, [36] = VB_LEFT }
+local vb_adapter = nil
+local function vbridge()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if b ~= nil then return b end
+    local vb = rawget(_G, "visceral_bridge")
+    if type(vb) ~= "table" or type(vb.r) ~= "function" then return nil end
+    if vb_adapter == nil or vb_adapter.src ~= vb then
+        vb_adapter = { src = vb, n = 280, r = function(slot)
+            local s = VB_MAP[slot]
+            if s == nil or (vb.n or 0) <= s then return 0 end   -- an older bridge Lua (no n, or too short): nothing
+            return vb.r(s)
+        end }
+    end
+    return vb_adapter
+end
 local function current_gun()
     local name = ""
     for _, tname in ipairs({ "re8vr", "re2vr", "re3vr", "re2" }) do
@@ -281,7 +300,7 @@ local LEFT_AREA_SLOT = 213
 local AREA_NAMES = { [1] = "pouch", [10] = "magazine", [11] = "well", [12] = "slide", [14] = "front grip", [15] = "handle",
                      [16] = "drum", [17] = "insert point", [18] = "slide from the left" }
 local function left_area()
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
     local ok, v = pcall(b.r, LEFT_AREA_SLOT)
     if not ok or type(v) ~= "number" then return "" end
@@ -299,7 +318,7 @@ local function is_ready(sp) return sp == "ready" or sp:sub(1, 6) == "ready " end
 local LEFT_HOLSTER_SLOT, RIGHT_HOLSTER_SLOT, RIGHT_AREA_SLOT = 214, 215, 216
 local HOLSTER_NAMES = { [1] = "right shoulder holster", [2] = "right hip holster", [3] = "left hip holster", [4] = "left shoulder holster" }
 local function slot_code(slot)   -- a bridge slot as a whole number; 0 when the build has no such slot
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return 0 end
     local ok, v = pcall(b.r, slot)
     return (ok and type(v) == "number") and math.floor(v + 0.5) or 0
@@ -321,7 +340,7 @@ local function guard_on()
     return ok and w == true
 end
 local function current_spot()
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
     local ok, v = pcall(b.r, SPOT_SLOT)
     if not ok or type(v) ~= "number" then return "" end
@@ -350,6 +369,7 @@ local function current_spot()
     if v == 17 then return "spare in hand, docked on the magazine" end
     if v == 18 then return "spare in hand, pulling the magazine out" end
     if v == 19 then return "spare in hand, magazine still in the gun" end
+    if v == 20 then return "shell port" end   -- 2026-11-23: shells docked at the loading port (Visceral RE2 / RE3, src/guns/stage.h)
     return ""
 end
 -- 2026-11-09 (Tefa: "i want the LG to put the left hand on the part, for example dock the left hand on the slide, but leave the hand
@@ -375,7 +395,7 @@ local function ready_kept(specific)
     return ready_cache[key]
 end
 local function lt_held()
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return true end
     local ok, v = pcall(b.r, 3)   -- Visceral RE8's bridge slot 3: LT held
     return ok and type(v) == "number" and v > 0.5
@@ -404,13 +424,13 @@ local RIGHT_SPOT_SLOT = 184
 local RT_SLOT, TRIGGER_POSE_HOLD_SEC = 5, 1.0
 local rt_since = nil
 local function rt_held()
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return false end
     local ok, v = pcall(b.r, RT_SLOT)
     return ok and type(v) == "number" and v > 0.5
 end
 local function right_spot()
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
     local ok, v = pcall(b.r, RIGHT_SPOT_SLOT)
     if not ok or type(v) ~= "number" then return "" end
@@ -460,7 +480,7 @@ local PULL_FROM = { ["spare in hand, pulling the magazine out"] = { "spare in ha
                     ["magazine in hand"] = { "ready on magazine", "magazine" } }
 local pull_from, pull_u, pull_preview, pull_preview_t = {}, -1.0, false, -10.0
 local function mag_pull()
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" or (b.n or 0) <= PULL_SLOT then return -1.0 end
     local ok, v = pcall(b.r, PULL_SLOT)
     if not ok or type(v) ~= "number" or v < 1.0 or v > 2.0 then return -1.0 end
@@ -614,12 +634,10 @@ end
 -- bridge slots 153 and 36), the right while a gun is in hand. A free hand is the game's again, and Visceral RE8's open / close
 -- with the grip button works on it. Visceral RE2's bridge says the same for RE2 (slot 539). With neither, everything is held.
 local function hands_on_gun()
-    local vb = rawget(_G, "visceral_bridge")   -- 2026-11-01 Visceral RE2: slot 539 = the left hand is on the gun
-    if type(vb) == "table" and type(vb.r) == "function" and rawget(_G, "visceral_re8_bridge") == nil then
-        local ok, l = pcall(vb.r, VB_LEFT)
-        return ok and type(l) == "number" and l > 0.5, gun_now ~= ""
-    end
-    local b = rawget(_G, "visceral_re8_bridge")
+    -- 2026-11-23: Visceral RE2 / RE3 answer through the same reads now (vbridge above: their stage slot is "153", their
+    -- left-hand-on-the-gun slot 539 is "36"), so a magazine or shells in the hand keep their pose there too (the old early
+    -- return on slot 539 alone dropped the fingers exactly then: a hand with a magazine in it has no dock)
+    local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return true, true end
     local ok1, sp = pcall(b.r, SPOT_SLOT)
     local ok2, g = pcall(b.r, 36)
@@ -732,7 +750,7 @@ local function apply(first_pass)
     local left_on, right_on = hands_on_gun()
     -- 2026-11-05 (Tefa, Visceral RE8: "when docked and shells in my hand, the fingers don't move at all"): while Visceral RE8 plays
     -- the game's own finger movement on a hand (its bridge slot 186: +1 left, +2 right), that hand is left to it
-    local b = rawget(_G, "visceral_re8_bridge")
+    local b = vbridge()
     if type(b) == "table" and type(b.r) == "function" then
         local ok, c = pcall(b.r, 186)
         c = ok and type(c) == "number" and math.floor(c + 0.5) or 0
