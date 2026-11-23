@@ -8,6 +8,7 @@
 //       seq   a NEW number each time (the same number twice is read once)
 //       set   joint -> [x, y, z] in degrees, or "joint.x" / ".y" / ".z" -> one number; a joint with no row yet gets one
 //       mag   the MAGAZINE IN HAND box: x y z (cm), yaw pitch roll (degrees)
+//       dock  the LEFT HAND, DOCKED box (the wrist on the gun at the spot it is docked on): x y z (cm), rx ry rz (degrees), as the sliders show; {} only asks
 //       spare the spare magazine's place beside the held one (Visceral RE8's mag2.json): x y z (cm), rx ry rz (degrees)
 //   <game>\reframework\data\hand_poser\remote_done.json   {"seq": 7, "ok": true, "pose": "<gun> @ <spot>", "held": 31, "note": ""}
 //
@@ -66,10 +67,15 @@ partial class PoserUi {
         // axes), through the window's SPARE MAGAZINE box. "spare": {"x": 3, "rz": 20}
         object pv; var spare = o.TryGetValue("spare", out pv) ? Json.Obj(pv) : null;
         if (spare != null) { string sn; if (spareBox.RemoteSet(spare, out sn)) n++; note += sn == "" ? "" : sn + "; "; }
+        // the LEFT HAND, DOCKED box (the wrist's place on the gun at the spot it is docked on now): "dock": {"y": 1.5, "rz": -20},
+        // the numbers its sliders show; "dock": {} only asks (the answer's "dock" always says what the sliders show)
+        object dv; var dock = o.TryGetValue("dock", out dv) ? Json.Obj(dv) : null;
+        bool asked = dock != null && dock.Count == 0;
+        if (dock != null && dock.Count > 0) { string dn; if (dockBox.RemoteSet(dock, out dn)) n++; note += dn == "" ? "" : dn + "; "; }
         if (n == 0 && note == "") note = "nothing to set";
-        string done = "{\"seq\": " + seq.ToString(System.Globalization.CultureInfo.InvariantCulture) + ", \"ok\": " + (n > 0 ? "true" : "false") +
+        string done = "{\"seq\": " + seq.ToString(System.Globalization.CultureInfo.InvariantCulture) + ", \"ok\": " + (n > 0 || asked ? "true" : "false") +
                       ", \"set\": " + n + ", \"pose\": " + Json.Write(perGun ? (poseGun ?? "") : "") + ", \"held\": " + model.Rows.Count +
-                      ", \"note\": " + Json.Write(note.Trim()) + "}";
+                      ", \"dock\": " + dockBox.RemoteNow() + ", \"note\": " + Json.Write(note.Trim()) + "}";
         try { File.WriteAllText(Path.Combine(link.DataDir, "remote_done.json"), done); } catch (IOException) { }
     }
 }

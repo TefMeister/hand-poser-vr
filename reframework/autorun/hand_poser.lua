@@ -447,6 +447,23 @@ local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["fre
 -- 2026-11-14: the spare-magazine spots, until posed, use the pose of the spot they were part of before (the same gun)
 local SPOT_FALLBACK = { ["two magazines in hand"] = "magazine in hand", ["spare in hand, docked on the magazine"] = "magazine",
                         ["spare in hand, pulling the magazine out"] = "magazine in hand", ["spare in hand, magazine still in the gun"] = "magazine in hand" }
+-- 2026-11-23 (Tefa, the LEMI: "as i'm taking the mag out, Ethans middle finger and thumb close more around it as it is coming
+-- out"): while a pistol's magazine is on the grip's line (Visceral RE8's bridge slot 279 = 1 + how far out, 0 = not on the line)
+-- the left hand is shown BETWEEN the pose it had with the magazine seated (A) and this spot's own pose (B) by that DISTANCE, not
+-- by time. A = the first kept pose of the list. Going back in runs the same line the other way, so the fingers open again.
+-- With the window open (tuning) the blend is off, so the window shows the pose being set, unless the file
+-- hand_poser/blend_preview.json exists (any content): then it blends while tuning too (a look at the whole movement).
+local PULL_SLOT = 279
+local PULL_FROM = { ["spare in hand, pulling the magazine out"] = { "spare in hand, docked on the magazine", "magazine" },
+                    ["magazine in hand"] = { "ready on magazine", "magazine" } }
+local pull_from, pull_u, pull_preview, pull_preview_t = {}, -1.0, false, -10.0
+local function mag_pull()
+    local b = rawget(_G, "visceral_re8_bridge")
+    if type(b) ~= "table" or type(b.r) ~= "function" or (b.n or 0) <= PULL_SLOT then return -1.0 end
+    local ok, v = pcall(b.r, PULL_SLOT)
+    if not ok or type(v) ~= "number" or v < 1.0 or v > 2.0 then return -1.0 end
+    return v - 1.0
+end
 local function load_pose_file(name)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(name) .. ".json")
     if ok and type(d) == "table" and type(d.joints) == "table" and next(d.joints) ~= nil then return d end
@@ -491,6 +508,21 @@ local function load_own_pose()
     local key = (gun_now == "" and "no gun" or gun_now) .. (spot_now ~= "" and (" @ " .. spot_now) or "")
     if key == own_key then return end
     own_key = key
+    pull_from = {}
+    do   -- the seated pose a pull starts from (kept even when this spot's own pose is missing: then nothing blends)
+        local froms = PULL_FROM[spot_left_now]
+        if froms then
+            for _, n in ipairs(froms) do
+                local okp, a = pcall(json.load_file, GUNS_DIR .. safe_name((gun_now == "" and "no gun" or gun_now) .. " @ " .. n) .. ".json")
+                if okp and type(a) == "table" and type(a.joints) == "table" and next(a.joints) ~= nil then
+                    for name, v in pairs(a.joints) do
+                        if name:sub(1, 2):lower() == "l_" and type(v) == "table" and #v == 3 then pull_from[name] = Vector3f.new(v[1] / DEG, v[2] / DEG, v[3] / DEG) end
+                    end
+                    break
+                end
+            end
+        end
+    end
     tuning, posed_left, posed_right = false, false, false
     if spot_now:find("trigger pulled", 1, true) then return end   -- 2026-11-08: the trigger finger is eased in by itself (pulled_frame)
     local ok, d = pcall(json.load_file, GUNS_DIR .. safe_name(key) .. ".json")
@@ -690,7 +722,14 @@ local function apply(first_pass)
         local dt = blend_t and math.min(0.1, t - blend_t) or 0.0
         blend_t = t
         k = POSE_BLEND_SEC > 0 and math.min(1.0, dt / POSE_BLEND_SEC) or 1.0
+        pull_u = mag_pull()
+        if pull_u >= 0.0 and tuning and t - pull_preview_t > 1.0 then
+            pull_preview_t = t
+            local okf, f = pcall(json.load_file, DIR .. "blend_preview.json")
+            pull_preview = okf and f ~= nil
+        end
     end
+    local pulling = pull_u >= 0.0 and (not tuning or pull_preview)
     for name, sv in pairs(shown) do   -- a joint no longer held, or its hand let go: it starts from where it stands next time
         local side = name:sub(1, 2):lower()
         if held[name] == nil or (side == "l_" and not left_on) or (side == "r_" and not right_on) then shown[name] = nil end
@@ -707,9 +746,16 @@ local function apply(first_pass)
                     shown[name] = cur
                 end
                 if first_pass then
-                    cur[1] = cur[1] + wrap_rad(v.x - cur[1]) * k
-                    cur[2] = cur[2] + wrap_rad(v.y - cur[2]) * k
-                    cur[3] = cur[3] + wrap_rad(v.z - cur[3]) * k
+                    local tx, ty, tz = v.x, v.y, v.z
+                    local a = pulling and side == "l_" and pull_from[name] or nil
+                    if a then   -- between the seated pose and this spot's own, by how far the magazine is out
+                        tx = a.x + wrap_rad(v.x - a.x) * pull_u
+                        ty = a.y + wrap_rad(v.y - a.y) * pull_u
+                        tz = a.z + wrap_rad(v.z - a.z) * pull_u
+                    end
+                    cur[1] = cur[1] + wrap_rad(tx - cur[1]) * k
+                    cur[2] = cur[2] + wrap_rad(ty - cur[2]) * k
+                    cur[3] = cur[3] + wrap_rad(tz - cur[3]) * k
                 end
                 local out = Vector3f.new(cur[1], cur[2], cur[3] + sway_of(name))
                 local ok = pcall(function() j:call("set_LocalEulerAngle", out) end)

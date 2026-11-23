@@ -240,6 +240,31 @@ class DockBox : SkinPanel {
         return any;
     }
 
+    // 2026-11-23: the box set from outside the window (Remote.cs "dock": {"y": 1.5, "rz": -20}): the numbers the sliders show
+    // (cm and degrees, left end negative), for the gun and spot the hand is docked on right now; undo takes it back
+    public bool RemoteSet(Dictionary<string, object> d, out string note) {
+        note = "";
+        if (!Docked(spot) || gun <= 0) { note = "docked box: the " + (Side == "r" ? "right" : "left") + " hand is not docked"; return false; }
+        if (loadedKey != gun + ":" + spot) { note = "docked box: this spot's numbers are not loaded yet, send it again"; return false; }
+        bool any = false;
+        foreach (var a in axes) {
+            object v;
+            if (!d.TryGetValue(a.Key, out v)) continue;
+            if (!any) MarkStream();
+            a.Bar.Value = Math.Max(a.Bar.Minimum, Math.Min(a.Bar.Maximum, (int)Math.Round(Json.Num(v, 0) * STEPS)));
+            ShowValue(a);
+            any = true;
+        }
+        if (any) { saveTimer.Stop(); saveTimer.Start(); } else note = "docked box: wants x y z (cm) rx ry rz (degrees)";
+        return any;
+    }
+    // what the sliders show now, for the remote answer: {"spot": 17, "x": 0.0, ...}
+    public string RemoteNow() {
+        var sb = new System.Text.StringBuilder("{\"gun\": " + gun + ", \"spot\": " + spot + ", \"docked\": " + ((Docked(spot) && gun > 0 && loadedKey == gun + ":" + spot) ? "true" : "false"));
+        foreach (var a in axes) sb.Append(", \"" + a.Key + "\": " + (a.Bar.Value / (double)STEPS).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return sb.Append("}").ToString();
+    }
+
     void Save() {
         if (PosesPath == null || !Docked(spot) || gun <= 0 || loadedKey != gun + ":" + spot) return;
         var all = LoadPoses();

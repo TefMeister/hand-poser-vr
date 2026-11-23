@@ -74,6 +74,19 @@ within half a second, Visceral RE8 b146 and up). Until then that place could onl
 The remote input takes it too: `"spare": {"x": 3, "rz": 20}`, and the magazine box as `"mag": {"y": 3.5, "pitch": 113}`.
 `[verified-live 2026-11-23, Village, robot hands, n=1: twelve places set from outside, each seen in the game]`
 
+**The docked wrist from outside (2026-11-23).** The remote input also takes the LEFT HAND, DOCKED box: `"dock": {"y": 1.5,
+"rz": -20}` (the numbers its sliders show: cm and degrees, for the gun and spot the hand is docked on right now), and `"dock": {}`
+only asks. Every answer carries `"dock": {"gun", "spot", "docked", "x", "y", "z", "rx", "ry", "rz"}`: what the sliders show.
+`[verified-live 2026-11-23, Village, robot hands, n=1: one slider set and read back]`
+
+**A pose that follows the pull (2026-11-23, with Visceral RE8 b148 and up).** While a pistol's magazine slides along the grip, the
+left hand is shown BETWEEN two kept poses by how far out the magazine is, not by time: from the pose it had with the magazine
+seated (*spare in hand, docked on the magazine*, or *ready on magazine* / *magazine* without a spare) to the pose of the spot it is
+in (*spare in hand, pulling the magazine out*, or *magazine in hand*). So: pose the docked hand, pose the pulled hand, and the
+fingers close steadily in between; going back in they open again. With the window open the blend is off (the window shows the pose
+being set); a file `reframework\data\hand_poserlend_preview.json` (any content) turns it on with the window open too.
+`[verified-live 2026-11-23, Village, robot hands, the LEMI: 15 / 43 / 76 % out pictured]`; not worn.
+
 ## How it works
 
 - **The window** (`app\`, C#) writes `command.json` into the game's `reframework\data\hand_poser\` folder on every change:
