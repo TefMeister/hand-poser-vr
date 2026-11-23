@@ -265,6 +265,32 @@ class PoseModel {
         } catch (Exception) { }
     }
 
+    // 2026-11-23 (RE2's board, "a way to save one pose for every gun"): the hand at the spot, as the window holds it now, saved as
+    // "any gun @ <spot>": the game script's fall-back for every gun with no pose of its own at that spot. Only the joints of the
+    // hand that is at the spot (the left for a left spot, the right for a right-hand one); the file is replaced whole.
+    public bool SaveAsAnyGun(out string note) {
+        string sp = Spot ?? "";
+        if (sp == "") { note = "no spot: the hand is at no part (the gun's own pose is not an 'any gun' pose)"; return false; }
+        bool ownR = sp.Contains("right hand") || sp.Contains("trigger pulled") || sp == HandSpots.GUARD;
+        bool ownL = !sp.StartsWith("right hand") && !sp.StartsWith("trigger pulled");
+        var joints = new Dictionary<string, object>();
+        foreach (var r in Rows) {
+            if (!r.Known) continue;
+            string n = r.Name.ToLowerInvariant();
+            if ((n.StartsWith("l_") && ownL) || (n.StartsWith("r_") && ownR)) joints[r.Name] = new List<object> { r.X, r.Y, r.Z };
+        }
+        if (joints.Count == 0) { note = "nothing to save: no joint of the hand at '" + sp + "' is held"; return false; }
+        string file = GunFile("any gun @ " + sp);
+        try {
+            Directory.CreateDirectory(GunsDir);
+            var o = new Dictionary<string, object> { { "game", Game }, { "character", Character }, { "joints", joints } };
+            File.WriteAllText(file, Json.Write(o));
+            MirrorOne(file);
+        } catch (Exception e) { note = "could not save: " + e.Message; return false; }
+        note = "saved as '" + Path.GetFileNameWithoutExtension(file) + "' (" + joints.Count + " joints)";
+        return true;
+    }
+
     public void Autosave() {
         Directory.CreateDirectory(GameDir);
         File.WriteAllText(AutosaveFile, Json.Write(ToJson()));

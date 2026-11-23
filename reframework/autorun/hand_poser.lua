@@ -554,6 +554,12 @@ local function load_own_pose()
         local d2 = load_pose_file((gun_now == "" and "no gun" or gun_now) .. " @ " .. fb)
         if d2 then d, found = d2, true end
     end
+    -- 2026-11-23 (RE2's board: one gun of about a dozen had stage poses): a docked spot this gun has no pose for takes the pose kept
+    -- for EVERY gun there ("any gun @ <spot>", the window's remote "save_as"), then that of the spot it falls back to
+    if not found and gun_now ~= "" and spot_now ~= "" and not own_kind(spot_left_now) then
+        local d2 = load_pose_file("any gun @ " .. spot_now) or (fb and load_pose_file("any gun @ " .. fb))
+        if d2 then d, found = d2, true end
+    end
     -- no file for the two hands together: each hand's own spot on its own (the ready areas, free, the holsters, the right's zone)
     local dl, nl, dr, nr
     if not found then

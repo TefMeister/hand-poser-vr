@@ -10,6 +10,8 @@
 //       mag   the MAGAZINE IN HAND box: x y z (cm), yaw pitch roll (degrees)
 //       dock  the LEFT HAND, DOCKED box (the wrist on the gun at the spot it is docked on): x y z (cm), rx ry rz (degrees), as the sliders show; {} only asks
 //       spare the spare magazine's place beside the held one (Visceral RE8's mag2.json): x y z (cm), rx ry rz (degrees)
+//       unset ["joint", ...]: those rows taken out of the pose in the window (2026-11-23)
+//       save_as "any gun": the hand at the spot also kept as "any gun @ <spot>", every gun's fall-back there (2026-11-23)
 //   <game>\reframework\data\hand_poser\remote_done.json   {"seq": 7, "ok": true, "pose": "<gun> @ <spot>", "held": 31, "note": ""}
 //
 // Nothing is applied before the window is connected and (with ONE POSE PER GUN ticked) knows which gun and spot it is posing.
@@ -72,6 +74,21 @@ partial class PoserUi {
         object dv; var dock = o.TryGetValue("dock", out dv) ? Json.Obj(dv) : null;
         bool asked = dock != null && dock.Count == 0;
         if (dock != null && dock.Count > 0) { string dn; if (dockBox.RemoteSet(dock, out dn)) n++; note += dn == "" ? "" : dn + "; "; }
+        // 2026-11-23: "unset": ["L_IndexF1", ...] takes those rows out of the pose in the window (saved at once, as the row's ✕ does)
+        object uv; var unset = o.TryGetValue("unset", out uv) ? Json.Arr(uv) : null;
+        if (unset != null && unset.Count > 0) {
+            int k = 0;
+            Change(() => { foreach (var x in unset) { var nm = x as string; if (nm != null && model.Remove(nm)) k++; } });
+            n += k;
+            if (k < unset.Count) note += (unset.Count - k) + " of the unset joint(s) were not held; ";
+        }
+        // 2026-11-23: "save_as": "any gun" keeps the hand at the spot as the pose for EVERY gun there ("any gun @ <spot>"), the game
+        // script's fall-back for a gun with no pose of its own at that spot (RE2 / RE3 have one gun posed of about a dozen)
+        object av; string saveAs = o.TryGetValue("save_as", out av) ? av as string : null;
+        if (saveAs != null) {
+            if (saveAs != "any gun") note += "save_as takes only \"any gun\"; ";
+            else { string sn; if (model.SaveAsAnyGun(out sn)) n++; note += sn + "; "; }
+        }
         if (n == 0 && note == "") note = "nothing to set";
         string done = "{\"seq\": " + seq.ToString(System.Globalization.CultureInfo.InvariantCulture) + ", \"ok\": " + (n > 0 || asked ? "true" : "false") +
                       ", \"set\": " + n + ", \"pose\": " + Json.Write(perGun ? (poseGun ?? "") : "") + ", \"held\": " + model.Rows.Count +
