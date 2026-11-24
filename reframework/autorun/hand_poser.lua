@@ -340,23 +340,6 @@ local function guard_on()
     local ok, w = pcall(function() return v.wants_block end)
     return ok and w == true
 end
--- 2026-11-24 (Tefa: numbered spots, SHOWN without doing them): Hand Poser's SPOTS picker writes visceral_re8/show.json; while it
--- is fresh (its time rewritten every second) and names a hand, that hand's spot is the shown one, so its pose loads here too
-local SHOW_FILE, SHOW_STALE_SEC, SHOW_READ_SEC = "visceral_re8/show.json", 5.0, 0.25
-local show_l, show_r, show_read_t = nil, nil, -100
-local function read_show()
-    if now() - show_read_t < SHOW_READ_SEC then return end
-    show_read_t = now()
-    show_l, show_r = nil, nil
-    local ok, d = pcall(json.load_file, SHOW_FILE)
-    if not ok or type(d) ~= "table" or type(d.t) ~= "number" then return end
-    local okt, unix = pcall(os.time)
-    if not okt or type(unix) ~= "number" or math.abs(unix - d.t) > SHOW_STALE_SEC then return end
-    local g = gun_now:match("^([^_]+)") or gun_now
-    if tostring(d.gun or "") ~= g then return end
-    if type(d.left) == "table" and type(d.left.name) == "string" then show_l = d.left.name end
-    if type(d.right) == "table" and type(d.right.name) == "string" then show_r = d.right.name end
-end
 local function current_spot()
     local b = vbridge()
     if type(b) ~= "table" or type(b.r) ~= "function" then return "" end
@@ -860,9 +843,6 @@ re.on_frame(function()
             if h ~= "" then sp = "at " .. h end
         end
         local rs = right_spot()
-        read_show()
-        if show_l then sp = show_l end   -- 2026-11-24: a SHOWN hand is at the shown spot
-        if show_r then rs = show_r end
         if guard_on() then sp, rs = GUARD, GUARD end   -- 2026-11-09: the block's guard, both hands, wins over everything
         spot_left_now, spot_right_now = sp, rs
         if rs == GUARD then sp = GUARD   -- one spot for the two hands: "<gun> @ guard"

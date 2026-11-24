@@ -34,6 +34,8 @@
 // that part is shaded DARK YELLOW while this window is the owner. Nothing clicked in a part yet: every ticked slider, as before.
 // Apps ask Allows(control) (is this slider in the reached part?) or Filter(ticked keys) (the ticked keys in the reached part,
 // read from the tick boxes' Tag). A tick box is a CheckBox with no text.
+//
+// 2026-11-24 (Tefa): Hand Poser's left stick picks a slider inside the highlighted part, the right stick tunes it, A ticks: NudgeNav.cs
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -41,7 +43,7 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-class Nudge : IDisposable {
+partial class Nudge : IDisposable {
     // Window View's shared block (window-view-vr shared.h, header v2 of 636 bytes)
     const string MAPPING = @"Local\FlatToVR_WindowView_v2";
     const int HEADER = 644, CTRL_MODE = 536, STICK_Y = 580, BUTTONS = 584, BUTTON_CLAIM = 628, STICK_X = 636;
@@ -102,6 +104,7 @@ class Nudge : IDisposable {
     // the part the buttons reach: the last clicked one with a ticked box, or null (then every ticked slider)
     public Control Active {
         get {
+            if (Navigate) return NavSection;   // 2026-11-24 (NudgeNav.cs): the part clicked last, ticks or not
             foreach (var n in recent) {
                 Control c;
                 if (sections.TryGetValue(n, out c) && c != null && !c.IsDisposed && HasTicked(c)) return c;
@@ -121,6 +124,7 @@ class Nudge : IDisposable {
         var keys = new HashSet<string>();
         TagsOf(a, keys);
         keys.IntersectWith(ticked);
+        if (Navigate && keys.Count == 0 && PickedKey != null) keys.Add(PickedKey);   // nothing ticked there: the selected slider
         return keys;
     }
     void Clicked(Control c) {
@@ -128,6 +132,7 @@ class Nudge : IDisposable {
         if (n == null) return;
         recent.Remove(n);
         recent.Insert(0, n);
+        if (Navigate) NavClicked(c);
     }
     void Shade(Control want) {   // the reached part dark yellow (its Tint when it has one, else its BackColor)
         if (want == shaded) return;
@@ -152,6 +157,7 @@ class Nudge : IDisposable {
         public ClickWatch(Nudge n) { this.n = n; }
         public bool PreFilterMessage(ref Message m) {
             int k = m.Msg;
+            if (n.Navigate && (k == 0x204 || k == 0xA4)) return false;   // 2026-11-24: right clicks (Window View's A) change nothing here
             if (k == 0x201 || k == 0x203 || k == 0x204 || k == 0x207 || k == 0xA1 || k == 0xA4) {
                 var c = Control.FromHandle(m.HWnd);
                 var f = c as Form ?? (c != null ? c.FindForm() : null);
@@ -226,17 +232,24 @@ class Nudge : IDisposable {
         pressStarted = false;
         mine = false;
         Owner = IsOwner();
-        Shade(Owner && anyTicked ? Active : null);
+        Shade(Owner && anyTicked ? Active : Owner && Navigate ? NavSection : null);
+        if (Navigate) Frame(Owner);
         if (!Open()) return 0;
-        int buttons; float sx, sy; bool ctrl;
+        int buttons; float sx, sy, lx = 0, ly = 0; bool ctrl;
         try {
             ctrl = view.ReadInt32(CTRL_MODE) != 0;
             buttons = view.ReadInt32(BUTTONS);
             sx = view.ReadSingle(STICK_X);
             sy = view.ReadSingle(STICK_Y);
+            if (Navigate) { lx = view.ReadSingle(LSTICK_X); ly = view.ReadSingle(LSTICK_Y); }
             if (ctrl && Owner && (anyTicked || mine)) view.Write(BUTTON_CLAIM, GetTickCount64());
         } catch (Exception) { Close(); return 0; }
-        if (!ctrl || !Owner) { lastButtons = buttons; stickDir = 0; return 0; }
+        if (!ctrl || !Owner) { lastButtons = buttons; stickDir = 0; navDir = 0; return 0; }
+        if (Navigate) {   // 2026-11-24 (NudgeNav.cs): the left stick picks a slider in the highlighted part, A ticks it
+            NavStick(lx, ly);
+            if (mine && Pressed(buttons, B_A)) ToggleSelected();
+            Frame(true);
+        }
         if (mine) {   // Y undo, B redo, X untick everything: the window clicked last only
             // 2026-11-14 (Tefa: "only the actual buttons on the window to do it ... X is right click for left controller anyway and Y
             // can stay as clear all, that i use"): Y unticks every box; undo / redo only by the window's own buttons; X and B free

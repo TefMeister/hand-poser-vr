@@ -53,8 +53,11 @@ partial class PoserUi : Form {
         DoubleBuffered = true;
         Backdrop.Init(this, ico, Back);   // the icon, pixelated and faint, behind the whole window (Tefa 2026-10-25)
 
-        BuildTop();
+        // 2026-11-24 evening (Tefa: "make the window a bit bigger and make both the left and right side end at the same bottom line"):
+        // the builds row is added first so it docks under the RIGHT column only; the left column runs the whole height (FitHeight)
+        nudge.Navigate = true;   // the left stick picks a slider in the highlighted part, A ticks it (NudgeNav.cs)
         BuildBottom();
+        BuildTop();
         rowsPanel = new SkinPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(6, 4, 6, 4) };
         Controls.Add(rowsPanel);
         rowsPanel.BringToFront();
@@ -146,6 +149,7 @@ partial class PoserUi : Form {
 
         // 2026-10-27 (Tefa: "add a clear all tick marks button"): beside the line about the ticked sliders
         var nudgeRow = Row(34);
+        nudgeRow.Dock = DockStyle.Bottom;   // 2026-11-24: the left column's last row sits on the window's bottom line
         nudgeRow.Controls.Add(Btn("CLEAR ALL TICKS", (s, e) => ClearTicks()));
         nudgeNote = new SkinLabel { AutoSize = true, Padding = new Padding(4, 6, 0, 0), ForeColor = Dim };
         nudgeRow.Controls.Add(nudgeNote);
@@ -169,8 +173,8 @@ partial class PoserUi : Form {
         top.Controls.Add(gunRow);
         top.Controls.Add(gameRow);
         top.Controls.Add(status);
-        // 2026-11-24 (Tefa: numbered spots, picked to tune, SHOWN without doing them): SpotPicker.cs, under the spot line
-        spotPicker = new SpotPicker(() => link.DataDir, () => link.Folder == null ? null : Path.Combine(link.Folder, "reframework", "data", "visceral_re8"), Ink, Dim, (t, h, w) => Btn(t, h, w)) { Visible = false };
+        // 2026-11-24 (Tefa: numbered spots, picked to tune): SpotPicker.cs, under the spot line (SHOW scrapped the same evening)
+        spotPicker = new SpotPicker(() => link.DataDir, Ink, Dim, (t, h, w) => Btn(t, h, w)) { Visible = false };
         spotPicker.Changed += () => { GunCheck(); UpdateStatus(); };
         spotPicker.HeightChanged += SizeTop;
         top.Controls.Add(spotPicker);
@@ -200,12 +204,34 @@ partial class PoserUi : Form {
             if ((c == dockBox || c == magBox || c == spareBox || c == spotPicker) && !dockShown) continue;
             h += c.Height;
         }
-        topPanel.Height = h;
+        leftNeed = h;
+        FitHeight();
+    }
+
+    // 2026-11-24 evening (Tefa: "left side of the hand poser has the scroll bar visible on the right side, but it's not scrollable
+    // with either A held or RT held, but the need to scroll is not good in vr anyway, so can you make the window a bit bigger and make
+    // both the left and right side end at the same bottom line"): the window is as tall as the taller column needs (never below
+    // MIN_CLIENT_H, never past the screen), so neither scrolls; the left ends on CLEAR ALL TICKS, the right on the builds, both
+    // docked to the bottom
+    const int MIN_CLIENT_H = 1180, STRIP_H = 8, FIT_SLACK = 6;
+    int leftNeed;
+    SkinPanel bottomPanel;
+    void FitHeight() {
+        if (topPanel == null || rowsPanel == null || bottomPanel == null) return;
+        int right = rowsPanel.Padding.Vertical + bottomPanel.Height;
+        foreach (Control c in rowsPanel.Controls) if (c.Visible || !IsHandleCreated) right += c.Height;
+        int want = Math.Max(MIN_CLIENT_H, Math.Max(leftNeed, right) + STRIP_H + FIT_SLACK);
+        var wa = Screen.FromControl(this).WorkingArea;
+        want = Math.Min(want, wa.Height - (Height - ClientSize.Height));
+        if (Math.Abs(ClientSize.Height - want) <= 2) return;
+        ClientSize = new Size(ClientSize.Width, want);
+        if (IsHandleCreated && Bottom > wa.Bottom) Top = Math.Max(wa.Top, wa.Bottom - Height);
     }
 
     void BuildBottom() {
         var bottom = new SkinPanel { Dock = DockStyle.Bottom, Height = 70, Tint = Color.FromArgb(120, Back) };
         Controls.Add(bottom);
+        bottomPanel = bottom;
         var one = Row(32);
         // 2026-11-14 (Tefa: "undo and redo needs to be under each row"): the window's UNDO / REDO are gone; each joint row has
         // its own ↶ / ↷ for the pose it is in (RowHistory.cs)
@@ -241,14 +267,15 @@ partial class PoserUi : Form {
     }
     void ShowNudge() {
         if (nudgeNote == null) return;
-        nudgeNote.Text = ticked.Count == 0 ? "tick sliders to step them with the right stick (left / right -1 / +1, up / down +5 / -5, held repeats); Y clears the ticks"
-            : !nudge.Linked ? ticked.Count + " ticked: start Window View and click the left stick in to step them with the buttons"
-            : ticked.Count + " ticked: right stick -1 / +1 / +5 / -5 (held repeats), Y clears, in Window View's controller mode";
-        nudgeNote.ForeColor = ticked.Count > 0 && nudge.Linked ? Good : Dim;
+        // 2026-11-24 (NudgeNav.cs): the left stick picks, the right stick tunes, A ticks more than one
+        string n = ticked.Count > 0 ? ticked.Count + " ticked · " : "";
+        nudgeNote.Text = !nudge.Linked ? n + "start Window View and click the left stick in: LS picks a slider, RS tunes it, A ticks"
+            : n + "LS: pick a slider in the yellow part · RS: tune (±1, ±5) · A: tick more · Y: clear ticks";
+        nudgeNote.ForeColor = nudge.Linked ? Good : Dim;
     }
     void NudgeTick() {
         bool started;
-        double step = nudge.Poll(ticked.Count > 0, out started);
+        double step = nudge.Poll(ticked.Count > 0 || nudge.PickedKey != null, out started);   // 2026-11-24: or a slider the left stick selected
         if (step == 0) {
             if (nudgeSaving && !started) { nudgeSaving = false; try { model.Autosave(); } catch (IOException) { } }
             return;
@@ -567,6 +594,7 @@ partial class PoserUi : Form {
         foreach (var r in model.Rows) if (!inGroup.Contains(r) && SideShown(SideOfName(r.Name))) { var jr = new JointRow(r, this, null); rows.Add(jr); order.Add(jr); nudge.Section(jr, "joint:" + r.Name); }
         for (int i = order.Count - 1; i >= 0; i--) rowsPanel.Controls.Add(order[i]);
         rowsPanel.ResumeLayout();
+        FitHeight();   // 2026-11-24: the right column changed: the window fits the taller column again
     }
 
     static int FingerOrder(string group) {

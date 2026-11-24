@@ -4,6 +4,8 @@
 //   HandPoser.exe --game <folder>      use this game folder instead of looking for a running game
 //   HandPoser.exe --selftest <folder>  no window: exercise the model and the game link in <folder>, print PASS/FAIL
 //   HandPoser.exe --demo               with the window: once connected, add the left fingers and turn one, for the test
+//   HandPoser.exe --data <folder>      keep settings, autosaves and poses in <folder> instead of %APPDATA%\HandPoserVR (tests:
+//                                      2026-11-24, the pretend game calls itself re3, so a test without it wrote into the real re3 poses)
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,7 +14,7 @@ using System.Linq;
 using System.Windows.Forms;
 
 static class Program {
-    public static readonly string AppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HandPoserVR");
+    public static string AppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HandPoserVR");
 
     [STAThread]
     static int Main(string[] args) {
@@ -22,6 +24,7 @@ static class Program {
             if (args[i] == "--game" && i + 1 < args.Length) gameArg = args[++i];
             else if (args[i] == "--selftest" && i + 1 < args.Length) return SelfTest.Run(args[++i]) ? 0 : 1;
             else if (args[i] == "--demo") demo = true;
+            else if (args[i] == "--data" && i + 1 < args.Length) AppData = Path.GetFullPath(args[++i]);
         }
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

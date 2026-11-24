@@ -1,5 +1,8 @@
 # Numbered hand spots, and SHOW a spot without doing it (2026-11-24)
 
+> **2026-11-24 evening: SHOW SCRAPPED.** Tefa, after trying it in the headset: *"the jump to hand pose isn't working as i imagined it to, so instead of going forward with it please scrap this, but leave the layout, it's good"*. Taken out of Hand Poser (SpotPicker.cs, the game script) and Visceral RE8 (showspot.cpp reverted, b159). The numbers and the SPOTS buttons (pick a spot to tune) stay.
+
+
 ## Why
 
 Tefa is fine-tuning Visceral RE8's guns and hand poses. Today a pose can only be tuned by putting the hand at its spot for

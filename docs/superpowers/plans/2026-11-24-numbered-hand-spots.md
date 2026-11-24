@@ -1,5 +1,8 @@
 # Numbered Hand Spots and SHOW Implementation Plan
 
+> **2026-11-24 evening: SHOW SCRAPPED.** Tefa, after trying it in the headset: *"the jump to hand pose isn't working as i imagined it to, so instead of going forward with it please scrap this, but leave the layout, it's good"*. Taken out of Hand Poser (SpotPicker.cs, the game script) and Visceral RE8 (showspot.cpp reverted, b159). The numbers and the SPOTS buttons (pick a spot to tune) stay.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (Tefa's standing rule: no subagents, work inline). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** every hand spot on a Village gun gets a fixed number (L / R per gun, H1-H4, A, M, F), shown in Hand Poser, Animation & Timing and Grip Zones; picking a number in Hand Poser loads that spot's pose to edit, and with SHOW the mod puts the hand at that spot without the real reload.

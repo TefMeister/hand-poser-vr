@@ -174,8 +174,10 @@ class SkinButton : Button {
     }
 }
 class SkinCheckBox : CheckBox {
-    bool down, clicked;
+    bool down, clicked, picked;
     public SkinCheckBox() { BackColor = Color.Transparent; }
+    public static readonly Color PickedEdge = Color.FromArgb(255, 205, 0);   // 2026-11-24: the slider the left stick selected (NudgeNav.cs)
+    public bool Picked { get { return picked; } set { if (picked == value) return; picked = value; Invalidate(); } }
     // 2026-10-27 (Tefa: "please make the tick boxes bigger"): a box with no text is drawn by us, filling the control (size it
     // 28 x 28): a dark square with a bright edge, and a thick tick when on. Boxes with text keep Windows' own look.
     protected override void OnPaint(PaintEventArgs e) {
@@ -185,7 +187,7 @@ class SkinCheckBox : CheckBox {
         int side = Math.Min(ClientSize.Width, ClientSize.Height) - 2;
         var r = new Rectangle(1, (ClientSize.Height - side) / 2, side, side);
         using (var back = new SolidBrush(Checked ? Color.FromArgb(56, 150, 200) : Color.FromArgb(24, 26, 34))) g.FillRectangle(back, r);
-        using (var edge = new Pen(Enabled ? Color.FromArgb(150, 160, 190) : Color.FromArgb(80, 84, 100), 2f)) g.DrawRectangle(edge, r);
+        using (var edge = new Pen(picked ? PickedEdge : Enabled ? Color.FromArgb(150, 160, 190) : Color.FromArgb(80, 84, 100), picked ? 3f : 2f)) g.DrawRectangle(edge, r);
         if (Checked) using (var tick = new Pen(Color.White, Math.Max(2f, side / 7f))) {
             tick.StartCap = tick.EndCap = System.Drawing.Drawing2D.LineCap.Round;
             g.DrawLines(tick, new[] { new PointF(r.X + side * 0.22f, r.Y + side * 0.52f), new PointF(r.X + side * 0.42f, r.Y + side * 0.72f), new PointF(r.X + side * 0.78f, r.Y + side * 0.30f) });
@@ -214,7 +216,8 @@ class SkinRadioButton : RadioButton {
 
 class FancySlider : Control {
     int min = 0, max = 100, val = 0;
-    bool hot, dragging;
+    bool hot, dragging, picked;
+    public bool Picked { get { return picked; } set { if (picked == value) return; picked = value; Invalidate(); } }   // 2026-11-24: the left stick's selection
     public int SmallChange = 1, LargeChange = 10;
     public bool Signed;   // the fill runs from zero (the middle) to the thumb, and a notch marks zero
     public string LeftText, RightText;   // 2026-10-27 (Tefa: "IN on the left side of the slider, OUT on the right side"): words under the ends
@@ -316,6 +319,8 @@ class FancySlider : Control {
                 if (RightText != null) { var sz = g.MeasureString(RightText, f); g.DrawString(RightText, f, br, Left0 + Width0 + 4 - sz.Width, ty); }
             }
         }
+        if (picked) using (var p = Pill(new RectangleF(1.5f, 1.5f, ClientSize.Width - 3, ClientSize.Height - 3)))
+            using (var pen = new Pen(SkinCheckBox.PickedEdge, 2.5f)) g.DrawPath(pen, p);
     }
 
     protected override void OnMouseEnter(EventArgs e) { hot = true; Invalidate(); base.OnMouseEnter(e); }

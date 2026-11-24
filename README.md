@@ -127,12 +127,21 @@ being set); a file `reframework\data\hand_poserlend_preview.json` (any content)
   finger bar says what the joint is ("Right index finger: knuckle (base)", "Left thumb: tip joint", "Left wrist (turns the
   whole hand)"), with the game's own name after it; the joint list shows them too, and its filter finds "index", "thumb" or
   "wrist". `app/JointNames.cs` knows Village's and RE2 / RE3's names and the body's.
-- **Controller buttons** (2026-10-25, Tefa: *"add tick boxes to each customizable hand part ... X is -1, Y is -5 and holding LG
-  makes X and Y repeat ... A and B and RG to do the same respectively for +"*): every slider and finger bar has a tick box.
-  In Window View's controller mode (left stick click), **X** takes every ticked slider down 1 degree, **Y** down 5, **A**
-  up 1, **B** up 5; a held **left grip** makes X and Y repeat at once and keep repeating, a held **right grip** the same
-  for A and B. While anything is ticked, Window View leaves those buttons and the grips to the Hand Poser. One UNDO takes a
-  whole press back. (`app/Nudge.cs` reads the buttons from Window View's shared block.)
+- **Controller buttons** (2026-10-25; the buttons of 2026-11-09; the left stick 2026-11-24, Tefa: *"move through the sliders
+  with LS and tune the selected slider with RS, A to tick boxes to select multiple"*). In Window View's controller mode (left
+  stick click), in the part shaded dark yellow (the finger box, docked-wrist box or magazine box clicked last):
+  **left stick** picks a slider (a bright yellow frame; held, it keeps moving), **right stick** tunes it (left / right -1 / +1,
+  up / down +5 / -5, held repeats), **A** ticks or unticks the picked slider, so several can be tuned together (with ticks in
+  the part, the right stick moves the ticked ones), **Y** unticks everything, **right trigger** clicks where the pointer is
+  (A no longer clicks in this window). One UNDO takes a whole press back. (`app/Nudge.cs`, `app/NudgeNav.cs` read Window
+  View's shared block; `test
+av_test.py` checks it with a pretend block and a pretend game.)
+- **Numbered spots** (2026-11-24): every hand spot of a gun has a fixed number (L1... left hand, R1... right hand, H1-H4
+  the holsters, A the ammo pouch, M the map, F first aid), shown on the hand's line here and in Animation & Timing and Grip
+  Zones. The SPOTS buttons pick a spot to tune its pose; FOLLOW THE GAME goes back to where the hands are. (SHOW, the hand
+  put on a picked spot without the reload, was tried the same day and taken out: Tefa, *"isn't working as i imagined it to"*.)
+- **The window fits its columns** (2026-11-24): it is as tall as the taller column needs, so nothing scrolls in the
+  headset; CLEAR ALL TICKS ends the left column and the builds end the right, on the same bottom line.
 - The icons of the four helper apps (Hand Poser, Grab Zones, Window View, Hand Freeze) share one tile, a dark rounded
   square with a blue edge; `tools/family_icons.py` draws all four.
 
