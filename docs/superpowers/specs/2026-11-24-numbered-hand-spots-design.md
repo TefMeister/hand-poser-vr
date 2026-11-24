@@ -12,7 +12,9 @@ can tune things without them being for real and once i'm finished tuning and try
 ## What Tefa decided
 
 - **Every hand spot gets a number, per gun, the same in every app.** Each hand its own list: **L1, L2...** the left hand's
-  spots, **R1, R2...** the right hand's, **H1...H4** the holsters (Tefa: *"holsters can be H and number"*).
+  spots, **R1, R2...** the right hand's, **H1...H4** the holsters (Tefa: *"holsters can be H and number"*). Approved by Tefa 2026-11-24 (*"ok for the plan"*).
+- **Body spots by letter** (Tefa, the same day: *"A for ammo pouch, M for map and F for first aid med"*): **A** the ammo pouch,
+  **M** the map spot, **F** the first-aid (medicine) spot. They sit in each hand's list like the holsters, the same for every gun.
 - **A number never changes.** A spot keeps its number on that gun for good; a new spot takes the next free one.
 - **Picking a number SHOWS the spot** (approach A): the mod puts that hand on the gun at that spot with that spot's pose, the
   real reload is not running. Unticking SHOW gives the real hands back, for trying it for real.
@@ -32,6 +34,9 @@ can tune things without them being for real and once i'm finished tuning and try
    Seeded once from the pose files already saved (`<gun> @ <left spot>[ + right hand <right spot>].json`), then a spot met in
    play for the first time on a gun is appended. Holsters are one fixed list for all guns (H1 right shoulder, H2 right hip,
    H3 left hip, H4 left shoulder: the mod's own codes 1 to 4). Writes only append; nothing is renumbered or removed.
+   A, M and F are fixed too: A = the pouch (the mod's area 1, "ready at pouch"); M and F need the holster script to report
+   the map and medicine zones it already has (`re8_vr_holster.lua`, `re8_vr_hand_gestures.lua`) in slots 214 / 215 as two new
+   codes (5 map, 6 medicine), so a hand there gets its own pose like a holster.
 2. **Shown everywhere:** Hand Poser's top line says the numbers with the words (*"LEFT L5 drum · RIGHT R3 on the cover"*);
    Animation & Timing and Grip Zones show the same line (read from a small `spot_now.json` the script writes when it
    changes).
