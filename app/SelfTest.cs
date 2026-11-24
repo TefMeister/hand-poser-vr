@@ -208,6 +208,17 @@ static class SelfTest {
         SpotNumbers.WriteNow(data, W, "L2 docked on the drum", "R1 on the cover");
         var now = Json.Obj(Json.Parse(File.ReadAllText(Path.Combine(data, SpotNumbers.NOW_FILE))));
         Check("spot_now.json written for the other apps", now != null && Json.Str(now["left"]) == "L2 docked on the drum" && Json.Str(now["right"]) == "R1 on the cover" && Json.Num(now["t"], 0) > 1.7e9);
+        Check("codes: drum = spot 6", SpotCodes.For("l", "drum").Spot == 6 && SpotCodes.For("l", "ready on drum").Spot == 6);
+        var rs = SpotCodes.For("l", "ready at slide");
+        Check("codes: ready at slide = spot 14, area 12", rs.Spot == 14 && rs.Area == 12);
+        Check("codes: the pouch = spot 14, area 1", SpotCodes.For("l", "ready at pouch").Spot == 14 && SpotCodes.For("l", "ready at pouch").Area == 1);
+        Check("codes: the cover = right spot 1, the latch 5", SpotCodes.For("r", "right hand on the cover").Spot == 1 && SpotCodes.For("r", "right hand, thumb on the latch").Spot == 5);
+        Check("codes: right hip holster = holster 2, first aid 5, map 6", SpotCodes.For("r", "right hand at right hip holster").Holster == 2 && SpotCodes.For("l", "at first aid").Holster == 5 && SpotCodes.For("l", "at map").Holster == 6);
+        Check("codes: the right hand ready at the drum = area 16", SpotCodes.For("r", "right hand ready at drum").Area == 16 && SpotCodes.For("r", "right hand ready at drum").Spot == 0);
+        Check("codes: a landing spot 1003, a start sphere 2003", SpotCodes.For("l", "land 3").Spot == 1003 && SpotCodes.For("l", "start 3 eject").Spot == 2003);
+        var sj = Json.Obj(Json.Parse(SpotPicker.ShowJson(7, 1.8e9, "ri3008_Inventory", "drum", null)));
+        var sl = Json.Obj(sj["left"]);
+        Check("show.json: the gun's short name, the left hand's name and codes, no right hand", Json.Num(sj["seq"], 0) == 7 && Json.Str(sj["gun"]) == "ri3008" && sl != null && Json.Str(sl["name"]) == "drum" && Json.Num(sl["spot"], 0) == 6 && sj["right"] == null);
         Check("split: left and right parts", SpotNumbers.LeftPart("drum + right hand on the cover") == "drum" && SpotNumbers.RightPart("drum + right hand on the cover") == "right hand on the cover" && SpotNumbers.RightPart("trigger pulled") == "trigger pulled" && SpotNumbers.LeftPart("trigger pulled") == "");
     }
     static bool Seed2(string gun, string data, string drum, string hammer) {

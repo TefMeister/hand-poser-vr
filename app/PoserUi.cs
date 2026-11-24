@@ -169,6 +169,11 @@ partial class PoserUi : Form {
         top.Controls.Add(gunRow);
         top.Controls.Add(gameRow);
         top.Controls.Add(status);
+        // 2026-11-24 (Tefa: numbered spots, picked to tune, SHOWN without doing them): SpotPicker.cs, under the spot line
+        spotPicker = new SpotPicker(() => link.DataDir, () => link.Folder == null ? null : Path.Combine(link.Folder, "reframework", "data", "visceral_re8"), Ink, Dim, (t, h, w) => Btn(t, h, w)) { Visible = false };
+        spotPicker.Changed += () => { GunCheck(); UpdateStatus(); };
+        spotPicker.HeightChanged += SizeTop;
+        top.Controls.Add(spotPicker);
         top.Controls.Add(whereLine);   // added last: the topmost line
         topPanel = top;
         ShowJointList(false);
@@ -192,7 +197,7 @@ partial class PoserUi : Form {
         int h = topPanel.Padding.Vertical + 8;
         foreach (Control c in topPanel.Controls) {
             if ((c == filterRow || c == listHolder) && !jointsOpen) continue;
-            if ((c == dockBox || c == magBox || c == spareBox) && !dockShown) continue;
+            if ((c == dockBox || c == magBox || c == spareBox || c == spotPicker) && !dockShown) continue;
             h += c.Height;
         }
         topPanel.Height = h;
@@ -322,7 +327,8 @@ partial class PoserUi : Form {
             }
         }
         bool village = DockBox.HasVisceral(link.Folder);
-        if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = spareBox.Visible = village; SizeTop(); }
+        if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = spareBox.Visible = spotPicker.Visible = village; SizeTop(); }
+        if (village && model.Connected) spotPicker.Refresh(model.Gun, model.Spot);
         if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); magBox.Poll(link.Folder); spareBox.Poll(link.Folder); }
         RemotePoll();   // 2026-11-23 (Remote.cs): a pose set from outside, as if the sliders had moved
         UpdateStatus();
@@ -335,11 +341,14 @@ partial class PoserUi : Form {
     string poseGun;   // the gun (and spot) whose pose is in the window (null = not decided yet)
     bool perSpot;
     CheckBox perSpotBox;
+    SpotPicker spotPicker;
+    // the spot whose pose the window holds: the picked one (SpotPicker.cs, 2026-11-24), else where the game says the hands are
+    string SpotForPose { get { return spotPicker != null && spotPicker.EditSpot != null ? spotPicker.EditSpot : model.Spot; } }
     void GunCheck() {
         if (!perGun || !autosaveLoaded || !model.Connected || model.Game == "") return;
         if (model.MirrorDir == null && link.DataDir != null) { model.MirrorDir = Path.Combine(link.DataDir, "guns"); model.MirrorAll(); }
         string g = model.Gun ?? "";
-        if (perSpot && !string.IsNullOrEmpty(model.Spot)) g += " @ " + model.Spot;   // a spot keeps its own pose too
+        if (perSpot && !string.IsNullOrEmpty(SpotForPose)) g += " @ " + SpotForPose;   // a spot keeps its own pose too
         if (poseGun == g) { model.GunPoseFile = model.GunFile(g); return; }
         string file = model.GunFile(g);
         // 2026-11-09 (Tefa: at the end of the slide rack the fingers open): a pose file with no joints in it (a spot made but never
@@ -349,7 +358,7 @@ partial class PoserUi : Form {
             model.Mark();
             if (model.LoadFile(file)) { if (g != (model.Gun ?? "")) KeepOtherHand(model.GunFile(model.Gun ?? "")); poseGun = g; model.GunPoseFile = file; AfterModelChange(); return; }
         }
-        if (perSpot) foreach (var fb in HandSpots.Fallbacks(model.Gun, model.Spot)) {   // 2026-11-09: start from what the game shows there
+        if (perSpot) foreach (var fb in HandSpots.Fallbacks(model.Gun, SpotForPose)) {   // 2026-11-09: start from what the game shows there
             string ff = model.GunFile(fb);
             if (File.Exists(ff) && HasJoints(ff) && model.LoadFile(ff)) { KeepOtherHand(model.GunFile(model.Gun ?? "")); poseGun = g; model.GunPoseFile = file; try { model.Autosave(); } catch (IOException) { } AfterModelChange(); return; }
         }
@@ -362,7 +371,7 @@ partial class PoserUi : Form {
     // magazine, the slide: the left hand's) held only that hand, so the right hand's grip from the gun's own pose was dropped. The
     // hand NOT at the spot now keeps the gun's own pose: its joints are taken from the gun's file (the game script does the same)
     void KeepOtherHand(string gunFile) {
-        string sp = model.Spot ?? "";
+        string sp = SpotForPose ?? "";
         bool ownR = sp.Contains("right hand") || sp.Contains("trigger pulled") || sp == HandSpots.GUARD;   // the guard is both hands
         bool ownL = sp != "" && !sp.StartsWith("right hand") && !sp.StartsWith("trigger pulled");
         try {

@@ -9,6 +9,9 @@ angles, the way the game would once the hold is applied. Prints each new command
 Joints that are not held report a fixed "animation" angle, so the window's first numbers visibly come from the game.
 """
 import json, os, sys, time
+# 2026-11-24: FAKE_GUN / FAKE_SPOT (environment) put a gun and a hand spot into state.json and make a visceral_re8 data folder, so
+# the numbered spots and the SPOT picker can be tried (SpotPicker.cs)
+FAKE_GUN, FAKE_SPOT = os.environ.get("FAKE_GUN", ""), os.environ.get("FAKE_SPOT", "")
 
 JOINTS = [("root", -1), ("spine_0", 0), ("spine_1", 1), ("l_arm_clavicle", 2), ("l_arm_upperarm", 3),
           ("l_arm_forearm", 4), ("l_arm_wrist", 5)]
@@ -35,6 +38,8 @@ def main():
     data = os.path.join(root, "FakeGame", "reframework", "data", "hand_poser")
     os.makedirs(os.path.join(root, "FakeGame", "reframework", "autorun"), exist_ok=True)
     os.makedirs(data, exist_ok=True)
+    if FAKE_GUN:
+        os.makedirs(os.path.join(root, "FakeGame", "reframework", "data", "visceral_re8"), exist_ok=True)
     state_file, cmd_file = os.path.join(data, "state.json"), os.path.join(data, "command.json")
     print("GAME FOLDER", os.path.join(root, "FakeGame"))
     last_seq, held, want = -1, {}, []
@@ -61,6 +66,8 @@ def main():
                 angles[name] = held.get(name, ANIM.get(name))
             st = {"game": "re3", "character": "pl2000", "connected": True, "seq_seen": last_seq, "frame": int(time.time()),
                   "error": "", "joints": [list(j) for j in JOINTS], "angles": angles}
+            if FAKE_GUN:
+                st["gun"], st["spot"] = FAKE_GUN, FAKE_SPOT
             tmp = state_file + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(st, f)
