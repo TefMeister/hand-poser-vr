@@ -29,6 +29,7 @@ static class SpotNumbers {
         "ready at slide from the left", "ready on slide from the left", "slide from the left", "slide from the left at the back",
         "ready at magazine", "ready on magazine", "magazine", "magazine in hand", "two magazines in hand",
         "spare in hand, docked on the magazine", "spare in hand, pulling the magazine out", "spare in hand, magazine still in the gun",
+        "old magazine in palm, the new one going in",
         "ready at well", "ready at handle", "handle", "ready at drum", "ready on drum", "drum", "ready on hammer", "hammer",
         "ready at insert point", "insert point", "rounds from the pouch", "shell port", "ready at front grip",
     };

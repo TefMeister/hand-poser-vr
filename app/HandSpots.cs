@@ -67,6 +67,7 @@ static class HandSpots {
         if (sp == "spare in hand, docked on the magazine") return "spare in hand, docked on the gun's magazine";
         if (sp == "spare in hand, pulling the magazine out") return "spare in hand, pulling the gun's magazine out";
         if (sp == "spare in hand, magazine still in the gun") return "spare in hand, the gun's magazine still in";
+        if (sp == "old magazine in palm, the new one going in") return "old magazine in the palm, the new one going in";   // 2026-11-25 (Visceral RE8 b162)
         if (sp == "rounds from the pouch") return "holding rounds from the pouch";
         if (sp == "") return "away from the gun, in no zone";
         return "docked on the " + sp;   // slide, magazine, handle, drum, insert point, hammer, "... at the back"
@@ -87,6 +88,7 @@ static class HandSpots {
     static readonly Dictionary<string, string> SpotFallback = new Dictionary<string, string> {
         { "two magazines in hand", "magazine in hand" }, { "spare in hand, docked on the magazine", "magazine" },
         { "spare in hand, pulling the magazine out", "magazine in hand" }, { "spare in hand, magazine still in the gun", "magazine in hand" },
+        { "old magazine in palm, the new one going in", "two magazines in hand" },
     };
     public static List<string> Fallbacks(string gun, string spot) {
         var list = new List<string>();

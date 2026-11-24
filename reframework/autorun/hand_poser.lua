@@ -370,6 +370,7 @@ local function current_spot()
     if v == 17 then return "spare in hand, docked on the magazine" end
     if v == 18 then return "spare in hand, pulling the magazine out" end
     if v == 19 then return "spare in hand, magazine still in the gun" end
+    if v == 21 then return "old magazine in palm, the new one going in" end   -- 2026-11-25: Visceral RE8 b162, the two-magazine reload's last step
     if v == 20 then return "shell port" end   -- 2026-11-23: shells docked at the loading port (Visceral RE2 / RE3, src/guns/stage.h)
     return ""
 end
@@ -469,7 +470,8 @@ local own_key, own_loads = nil, 0
 local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["free"] = true, [GUARD] = true }   -- guard: 2026-11-09
 -- 2026-11-14: the spare-magazine spots, until posed, use the pose of the spot they were part of before (the same gun)
 local SPOT_FALLBACK = { ["two magazines in hand"] = "magazine in hand", ["spare in hand, docked on the magazine"] = "magazine",
-                        ["spare in hand, pulling the magazine out"] = "magazine in hand", ["spare in hand, magazine still in the gun"] = "magazine in hand" }
+                        ["spare in hand, pulling the magazine out"] = "magazine in hand", ["spare in hand, magazine still in the gun"] = "magazine in hand",
+                        ["old magazine in palm, the new one going in"] = "two magazines in hand" }
 -- 2026-11-23 (Tefa, the LEMI: "as i'm taking the mag out, Ethans middle finger and thumb close more around it as it is coming
 -- out"): while a pistol's magazine is on the grip's line (Visceral RE8's bridge slot 279 = 1 + how far out, 0 = not on the line)
 -- the left hand is shown BETWEEN the pose it had with the magazine seated (A) and this spot's own pose (B) by that DISTANCE, not
