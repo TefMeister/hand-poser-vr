@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 static class HandSpots {
@@ -26,11 +27,29 @@ static class HandSpots {
     public static string Line(string spot, string side, string gun) {
         bool right = side == "r";
         string left = "", rpart = "";
-        foreach (var part in (spot ?? "").Split(new[] { " + " }, StringSplitOptions.None)) {
-            if (part.StartsWith(RIGHT) || part == TRIGGER) rpart = part; else if (part != "" && left == "") left = part;
-        }
+        left = SpotNumbers.LeftPart(spot); rpart = SpotNumbers.RightPart(spot);   // 2026-11-24: one split for both ("right hand, thumb on the latch" was read as the left hand's)
         if (spot == GUARD) { left = GUARD; rpart = GUARD; }
         return (right ? "RIGHT HAND: " + RightPlace(rpart, gun) : "LEFT HAND: " + LeftPlace(left));
+    }
+    // 2026-11-24 (Tefa: every hand spot numbered, L / R / H / A / M / F, the same in every app): the spot's number in front
+    public static string Line(string spot, string side, string gun, string dataDir) {
+        string plain = Line(spot, side, gun);
+        string code = Code(spot, side, gun, dataDir);
+        if (code == "") return plain;
+        int c = plain.IndexOf(": ");
+        return plain.Substring(0, c + 2) + code + " · " + plain.Substring(c + 2);
+    }
+    public static string Code(string spot, string side, string gun, string dataDir) {
+        if (string.IsNullOrEmpty(dataDir) || spot == GUARD) return "";
+        bool right = side == "r";
+        string part = right ? SpotNumbers.RightPart(spot) : SpotNumbers.LeftPart(spot);
+        try { return SpotNumbers.Code(gun, right ? "r" : "l", part, dataDir); } catch (IOException) { return ""; } catch (UnauthorizedAccessException) { return ""; }
+    }
+    // the short words after the number, for the other apps' line: "L5 docked on the drum", "R3 on the cover"
+    public static string Short(string spot, string side, string gun, string dataDir) {
+        string full = Line(spot, side, gun, dataDir);
+        int c = full.IndexOf(": ");
+        return (c < 0 ? full : full.Substring(c + 2)).Replace(" · ", " ");
     }
 
     static string LeftPlace(string sp) {
@@ -56,7 +75,7 @@ static class HandSpots {
         if (sp == GUARD) return "guard (block held, arms up)";
         if (sp == TRIGGER) return "on the grip, trigger pulled";
         if (sp == "") return string.IsNullOrEmpty(gun) ? "free, no gun in hand" : "on the gun's grip";
-        string p = sp.Substring(RIGHT.Length);
+        string p = sp.StartsWith(RIGHT) ? sp.Substring(RIGHT.Length) : sp.StartsWith("right hand, ") ? sp.Substring("right hand, ".Length) : sp;
         if (p.StartsWith(READY_AT)) return "in the " + p.Substring(READY_AT.Length) + " grab zone (hand open, ready)";
         if (p.StartsWith(AT)) return "at the " + p.Substring(AT.Length);
         return p;   // "on the cover", "on the bolt", "over the hammer", "on the bolt at the back"

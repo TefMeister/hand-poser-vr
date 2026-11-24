@@ -409,7 +409,9 @@ partial class PoserUi : Form {
 
     void UpdateStatus() {
         bool alive = link.Folder != null && link.ScriptAlive();
-        whereLine.Text = dockShown && model.Connected ? HandSpots.Line(model.Spot, shownSide, model.Gun) : "";
+        whereLine.Text = dockShown && model.Connected ? HandSpots.Line(model.Spot, shownSide, model.Gun, link.DataDir) : "";
+        if (model.Connected && link.DataDir != null)   // 2026-11-24: both hands' numbers for Animation & Timing and Grip Zones
+            SpotNumbers.WriteNow(link.DataDir, model.Gun, HandSpots.Short(model.Spot, "l", model.Gun, link.DataDir), HandSpots.Short(model.Spot, "r", model.Gun, link.DataDir));
         if (link.Folder == null) { status.Text = "no game found yet: start an RE game with REFramework, or pick its folder"; status.ForeColor = Bad; }
         else if (!alive) { status.Text = Path.GetFileName(link.Folder) + (link.NoScript ? " · waiting for the game (its Hand Poser link switched on)" : " · waiting for the script in the game"); status.ForeColor = Dim; }
         else if (!model.Connected) { status.Text = model.Game + (link.NoScript ? " · game running" : " · script running") + ", no character yet (load into the game)"; status.ForeColor = Dim; }

@@ -201,6 +201,13 @@ static class SelfTest {
         Check("another gun has its own list: its posed slide L1, a new magazine L2", SpotNumbers.Code("ri3021_Inventory", "l", "magazine", data) == "L2" && SpotNumbers.Code("ri3021_Inventory", "l", "slide", data) == "L1");
         var list = SpotNumbers.List(W, "l", data);
         Check("the left list: the L numbers in order, then H1-H4, A, M, F (" + list.Count + ")", list.Count == 3 + 7 && list[0].Key == "L1" && list[2].Key == "L3" && list[3].Key == "H1" && list[9].Key == "F");
+        Check("the line has the number: " + HandSpots.Line("drum + right hand on the cover", "l", W, data), HandSpots.Line("drum + right hand on the cover", "l", W, data) == "LEFT HAND: " + drum + " · docked on the drum");
+        Check("the right line too: " + HandSpots.Line("drum + right hand on the cover", "r", W, data), HandSpots.Line("drum + right hand on the cover", "r", W, data) == "RIGHT HAND: R1 · on the cover");
+        Check("the latch spot is the right hand's: " + HandSpots.Line("right hand, thumb on the latch", "r", "ri3023_Inventory"), HandSpots.Line("right hand, thumb on the latch", "r", "ri3023_Inventory") == "RIGHT HAND: thumb on the latch" && HandSpots.Line("right hand, thumb on the latch", "l", "ri3023_Inventory") == "LEFT HAND: away from the gun, in no zone");
+        Check("no number where there is none", HandSpots.Line("free", "l", W, data) == "LEFT HAND: free: near the gun, in no zone");
+        SpotNumbers.WriteNow(data, W, "L2 docked on the drum", "R1 on the cover");
+        var now = Json.Obj(Json.Parse(File.ReadAllText(Path.Combine(data, SpotNumbers.NOW_FILE))));
+        Check("spot_now.json written for the other apps", now != null && Json.Str(now["left"]) == "L2 docked on the drum" && Json.Str(now["right"]) == "R1 on the cover" && Json.Num(now["t"], 0) > 1.7e9);
         Check("split: left and right parts", SpotNumbers.LeftPart("drum + right hand on the cover") == "drum" && SpotNumbers.RightPart("drum + right hand on the cover") == "right hand on the cover" && SpotNumbers.RightPart("trigger pulled") == "trigger pulled" && SpotNumbers.LeftPart("trigger pulled") == "");
     }
     static bool Seed2(string gun, string data, string drum, string hammer) {
