@@ -181,12 +181,9 @@ partial class PoserUi : Form {
         top.Controls.Add(gunRow);
         top.Controls.Add(gameRow);
         top.Controls.Add(status);
-        // 2026-11-24 (Tefa: numbered spots, picked to tune): SpotPicker.cs, under the spot line (SHOW scrapped the same evening)
-        spotPicker = new SpotPicker(() => link.DataDir, Ink, Dim, (t, h, w) => Btn(t, h, w)) { Visible = false };
-        spotPicker.Changed += () => { GunCheck(); UpdateStatus(); };
-        spotPicker.HeightChanged += SizeTop;
-        nudge.SectionTick(spotPicker, "spots", into: spotPicker.Head);
-        top.Controls.Add(spotPicker);
+        // 2026-11-25 (Tefa: "remove them from the hand poser, leave only this ... as a headline of what is being worked on"): the
+        // numbered spot buttons (SpotPicker.cs, 2026-11-24) moved to Hand Freeze's SPOTS tab, where a click puts the hands on the
+        // spot for real; this window follows the game, and the line below says which spot that is
         top.Controls.Add(whereLine);   // added last: the topmost line
         topPanel = top;
         ShowJointList(false);
@@ -210,7 +207,7 @@ partial class PoserUi : Form {
         int h = topPanel.Padding.Vertical + 8;
         foreach (Control c in topPanel.Controls) {
             if ((c == filterRow || c == listHolder) && !jointsOpen) continue;
-            if ((c == dockBox || c == magBox || c == spareBox || c == spotPicker) && !dockShown) continue;
+            if ((c == dockBox || c == magBox || c == spareBox) && !dockShown) continue;
             h += c.Height;
         }
         leftNeed = h;
@@ -367,8 +364,7 @@ partial class PoserUi : Form {
             }
         }
         bool village = DockBox.HasVisceral(link.Folder);
-        if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = spareBox.Visible = spotPicker.Visible = village; SizeTop(); }
-        if (village && model.Connected) spotPicker.Refresh(model.Gun, model.Spot);
+        if (dockShown != village) { dockShown = dockBox.Visible = magBox.Visible = spareBox.Visible = village; SizeTop(); }
         if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); magBox.Poll(link.Folder); spareBox.Poll(link.Folder); }
         RemotePoll();   // 2026-11-23 (Remote.cs): a pose set from outside, as if the sliders had moved
         ShowUndo();
@@ -382,9 +378,8 @@ partial class PoserUi : Form {
     string poseGun;   // the gun (and spot) whose pose is in the window (null = not decided yet)
     bool perSpot;
     CheckBox perSpotBox;
-    SpotPicker spotPicker;
-    // the spot whose pose the window holds: the picked one (SpotPicker.cs, 2026-11-24), else where the game says the hands are
-    string SpotForPose { get { return spotPicker != null && spotPicker.EditSpot != null ? spotPicker.EditSpot : model.Spot; } }
+    // the spot whose pose the window holds: where the game says the hands are (2026-11-25: picking a spot is Hand Freeze's SPOTS tab now)
+    string SpotForPose { get { return model.Spot; } }
     void GunCheck() {
         if (!perGun || !autosaveLoaded || !model.Connected || model.Game == "") return;
         if (model.MirrorDir == null && link.DataDir != null) { model.MirrorDir = Path.Combine(link.DataDir, "guns"); model.MirrorAll(); }

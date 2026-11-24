@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 KIT = os.path.join(REPO, "kit")
 BESIDE = os.path.dirname(REPO)
-HELPERS = ["grip-zones-vr", "holster-zones-vr", "gun-poser-vr", "animation-timing-vr"]
+HELPERS = ["grip-zones-vr", "holster-zones-vr", "gun-poser-vr", "animation-timing-vr", "hand-freeze-vr"]   # Hand Freeze joined 2026-11-25
 OLD_PLACES = ["app", "shared"]   # where the apps kept their own copies before the kit
 
 

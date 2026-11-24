@@ -109,7 +109,8 @@ def main():
     check("the window is up", bool(hwnd))
     r = wintypes.RECT(); user32.GetClientRect(hwnd, ctypes.byref(r))
     print("client size", r.right, "x", r.bottom)
-    check("the window grew past its starting height for the long spot rows", r.bottom > 1180, str(r.bottom))
+    # 2026-11-25: the numbered spot buttons moved to Hand Freeze's SPOTS tab; this window keeps only the headline
+    check("no spot buttons in this window any more", not [h for h, t in children(hwnd) if t == "FOLLOW THE GAME"])
     clear = [h for h, t in children(hwnd) if t == "CLEAR ALL TICKS"]
     if clear:
         left_col = user32.GetParent(user32.GetParent(clear[0]))
