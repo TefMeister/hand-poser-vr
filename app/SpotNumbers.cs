@@ -134,10 +134,18 @@ static class SpotNumbers {
 
     // ---- the file ----
     static string Gun(string gun) { return string.IsNullOrEmpty(gun) ? "no gun" : gun; }
+    // 2026-11-24: the window asks for the numbers on every status update; the file is parsed again only when it changed on disk
+    // (helper windows must stay light beside a VR game). A copy is handed out, so a caller's Add never touches the cache.
+    static string cachePath, cacheText;
+    static DateTime cacheTime;
     static Dictionary<string, object> Load(string dataDir) {
         try {
             string f = Path.Combine(dataDir, FILE);
-            if (File.Exists(f)) { var o = Json.Obj(Json.Parse(File.ReadAllText(f))); if (o != null) return o; }
+            if (File.Exists(f)) {
+                var t = File.GetLastWriteTimeUtc(f);
+                if (f != cachePath || t != cacheTime || cacheText == null) { cacheText = File.ReadAllText(f); cachePath = f; cacheTime = t; }
+                var o = Json.Obj(Json.Parse(cacheText)); if (o != null) return o;
+            }
         } catch (Exception) { }
         return new Dictionary<string, object>();
     }
@@ -162,6 +170,7 @@ static class SpotNumbers {
     static void Save(string dataDir, Dictionary<string, object> all) {
         Directory.CreateDirectory(dataDir);
         WriteAtomic(Path.Combine(dataDir, FILE), Json.Write(all));
+        cacheText = null;   // read it fresh next time (two writes inside one file-time tick must not hide the second)
     }
     public static void WriteAtomic(string path, string text) {
         string tmp = path + ".tmp";
