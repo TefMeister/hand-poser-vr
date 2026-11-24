@@ -174,8 +174,38 @@ static class SelfTest {
         try { model.ReadState("{ this is not json"); } catch (FormatException) { threw = true; }
         Check("half-written state.json is rejected, not crashed on", threw);
 
+        SpotNumberChecks(folder);
         Console.WriteLine(failed == 0 ? "ALL PASS" : failed + " FAILED");
         return failed == 0;
+    }
+
+    // 2026-11-24 (Tefa: "have all the grip zones and different zone poses numbered"): the numbers per gun, L / R / H / A / M / F
+    static void SpotNumberChecks(string folder) {
+        string data = Path.Combine(folder, "spotdata");
+        if (Directory.Exists(data)) Directory.Delete(data, true);
+        Directory.CreateDirectory(Path.Combine(data, "guns"));
+        const string W = "ri3008_Inventory";
+        foreach (var n in new[] { W + " @ drum", W + " @ handle", W + " @ drum + right hand on the cover", "ri3021_Inventory @ slide" })
+            File.WriteAllText(Path.Combine(data, "guns", n + ".json"), "{\"joints\":{}}");
+        SpotNumbers.Seed(W, data);
+        string handle = SpotNumbers.Code(W, "l", "handle", data), drum = SpotNumbers.Code(W, "l", "drum", data);
+        Check("seeded: handle and drum are two L numbers (" + handle + ", " + drum + ")", handle.StartsWith("L") && drum.StartsWith("L") && handle != drum);
+        Check("seeded: the right hand's cover is R1", SpotNumbers.Code(W, "r", "right hand on the cover", data) == "R1");
+        string hammer = SpotNumbers.Code(W, "l", "hammer", data);
+        Check("a new spot takes the next number (" + hammer + ")", hammer == "L3");
+        Check("asked again, the same number", SpotNumbers.Code(W, "l", "hammer", data) == "L3" && SpotNumbers.Code(W, "l", "drum", data) == drum);
+        Check("seeding again changes nothing", Seed2(W, data, drum, hammer));
+        Check("a holster is H (right hip = H2)", SpotNumbers.Code(W, "r", "right hand at right hip holster", data) == "H2" && SpotNumbers.Code(W, "l", "at left shoulder holster", data) == "H4");
+        Check("the pouch is A, the map M, first aid F", SpotNumbers.Code(W, "l", "ready at pouch", data) == "A" && SpotNumbers.Code(W, "r", "right hand at map", data) == "M" && SpotNumbers.Code(W, "l", "at first aid", data) == "F");
+        Check("free, guard and nothing have no number", SpotNumbers.Code(W, "l", "free", data) == "" && SpotNumbers.Code(W, "l", "", data) == "" && SpotNumbers.Code(W, "l", "guard", data) == "");
+        Check("another gun has its own list: its posed slide L1, a new magazine L2", SpotNumbers.Code("ri3021_Inventory", "l", "magazine", data) == "L2" && SpotNumbers.Code("ri3021_Inventory", "l", "slide", data) == "L1");
+        var list = SpotNumbers.List(W, "l", data);
+        Check("the left list: the L numbers in order, then H1-H4, A, M, F (" + list.Count + ")", list.Count == 3 + 7 && list[0].Key == "L1" && list[2].Key == "L3" && list[3].Key == "H1" && list[9].Key == "F");
+        Check("split: left and right parts", SpotNumbers.LeftPart("drum + right hand on the cover") == "drum" && SpotNumbers.RightPart("drum + right hand on the cover") == "right hand on the cover" && SpotNumbers.RightPart("trigger pulled") == "trigger pulled" && SpotNumbers.LeftPart("trigger pulled") == "");
+    }
+    static bool Seed2(string gun, string data, string drum, string hammer) {
+        SpotNumbers.Seed(gun, data);
+        return SpotNumbers.Code(gun, "l", "drum", data) == drum && SpotNumbers.Code(gun, "l", "hammer", data) == hammer;
     }
 
     static bool UndoLimit(string appData) {
