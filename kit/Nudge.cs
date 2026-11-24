@@ -1,3 +1,6 @@
+// KIT FILE -- the one copy lives in hand-poser-vr/kit/; edit it THERE, then run `python tools/sync_kit.py` (it copies the kit into
+// Grip Zones, Holster Zones, Gun Poser and Animation & Timing, and `--check` fails when a copy has drifted).
+//
 // Nudge.cs -- the controller buttons step the ticked sliders (2026-10-25, Tefa: "add tick boxes to each customizable hand part,
 // so that when ticked, i don't have to actually slide the sliders, i can use buttons to + and - sliders, maybe X is -1, Y is -5
 // and holding LG makes X and Y repeat press instantly. A and B and RG to do the same respectively for + on the sliders").
@@ -36,6 +39,7 @@
 // read from the tick boxes' Tag). A tick box is a CheckBox with no text.
 //
 // 2026-11-24 (Tefa): Hand Poser's left stick picks a slider inside the highlighted part, the right stick tunes it, A ticks: NudgeNav.cs
+// 2026-11-25: every helper uses that scheme (Navigate = true), and the left stick reaches every control, not only sliders
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -133,11 +137,11 @@ partial class Nudge : IDisposable {
     }
     void Clicked(Control c, int msg) {
         if (Navigate && msg == 0x207) { SectionClicked(c); return; }   // 2026-11-24: LT (Window View's middle button) picks a section
+        if (Navigate) NavClicked(c);   // 2026-11-25: any stop clicked is selected, in a section or not
         string n = SectionOf(c);
         if (n == null) return;
         recent.Remove(n);
         recent.Insert(0, n);
-        if (Navigate) NavClicked(c);
     }
     void Shade(Control want) {   // the reached part dark yellow (its Tint when it has one, else its BackColor)
         if (want == shaded) return;

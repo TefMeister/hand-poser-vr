@@ -1,3 +1,6 @@
+// KIT FILE -- the one copy lives in hand-poser-vr/kit/; edit it THERE, then run `python tools/sync_kit.py` (it copies the kit into
+// Grip Zones, Holster Zones, Gun Poser and Animation & Timing, and `--check` fails when a copy has drifted).
+//
 // SliderUndo.cs -- one undo / redo for the whole window, on the LAST slider used only (2026-11-24, Tefa: "X to undo, but undo only
 // the current selected slider's actions and forget all undo after that, the same with undo/redo arrows, so we only need one set of
 // arrow icons and they will only work on the last slider that was used, if a new slider gets tweaked, the last one is forgotten").

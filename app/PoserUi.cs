@@ -13,9 +13,8 @@ using System.Windows.Forms;
 partial class PoserUi : Form {
     const int POLL_MS = 100, COMMAND_DEBOUNCE_MS = 30, FIND_GAME_EVERY_MS = 5000;   // 2026-10-25: 100 ms, for the live "from the hand" numbers
     const int SLIDER_STEPS_PER_DEG = 10;   // sliders count tenths of a degree
-    static readonly Color Back = Color.FromArgb(28, 30, 38), Panel2 = Color.FromArgb(38, 41, 52), Ink = Color.FromArgb(232, 232, 236);
-    static readonly Color Dim = Color.FromArgb(150, 155, 170), Accent = Color.FromArgb(70, 120, 200), Lit = Color.FromArgb(96, 78, 30);
-    static readonly Color Good = Color.FromArgb(80, 190, 110), Bad = Color.FromArgb(220, 110, 90);
+    static readonly Color Back = Look.Back, Panel2 = Look.Panel2, Ink = Look.Ink;   // 2026-11-25: the kit's colours (Skin.cs Look)
+    static readonly Color Dim = Look.Dim, Accent = Look.Accent, Lit = Look.Lit, Good = Look.Good, Bad = Look.Bad;
 
     readonly Settings settings = new Settings();
     readonly GameLink link = new GameLink();
@@ -165,6 +164,9 @@ partial class PoserUi : Form {
         dockBox.HeightChanged += () => { settings.Set("dock_open", dockBox.Open ? "1" : "0"); SizeTop(); };
         magBox = new MagBox(this, (t, h, w) => Btn(t, h, w), settings.Get("mag_open", "1") == "1") { Visible = false };   // 2026-11-14 (MagBox.cs)
         nudge.Section(magBox, "mag"); magBox.HeightChanged += () => { settings.Set("mag_open", magBox.Open ? "1" : "0"); SizeTop(); };
+        // 2026-11-25 (Tefa: "place things into sections"): every row a section with its tick (NudgeNav.cs SectionTick)
+        nudge.SectionTick(gameRow, "top:game"); nudge.SectionTick(gunRow, "top:keep"); nudge.SectionTick(quick, "top:hands");
+        nudge.SectionTick(filterRow, "top:joint"); nudge.SectionTick(nudgeRow, "top:ticks");
         // docked controls stack bottom-up in the order added, so add in reverse
         top.Controls.Add(nudgeRow);
         top.Controls.Add(magBox);
@@ -183,6 +185,7 @@ partial class PoserUi : Form {
         spotPicker = new SpotPicker(() => link.DataDir, Ink, Dim, (t, h, w) => Btn(t, h, w)) { Visible = false };
         spotPicker.Changed += () => { GunCheck(); UpdateStatus(); };
         spotPicker.HeightChanged += SizeTop;
+        nudge.SectionTick(spotPicker, "spots", into: spotPicker.Head);
         top.Controls.Add(spotPicker);
         top.Controls.Add(whereLine);   // added last: the topmost line
         topPanel = top;
@@ -255,10 +258,14 @@ partial class PoserUi : Form {
         two.Controls.Add(new SkinLabel { Text = "saved builds:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         builds = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Panel2, ForeColor = Ink, FlatStyle = FlatStyle.Flat };
         two.Controls.Add(builds);
+        // 2026-11-25: a drop-down cannot be worked from the headset without the pointer; ◀ ▶ step through the saved builds
+        two.Controls.Add(Btn("◀", (s, e) => { if (builds.Items.Count > 0) builds.SelectedIndex = Math.Max(0, builds.SelectedIndex - 1); }, 34));
+        two.Controls.Add(Btn("▶", (s, e) => { if (builds.Items.Count > 0) builds.SelectedIndex = Math.Min(builds.Items.Count - 1, builds.SelectedIndex + 1); }, 34));
         two.Controls.Add(Btn("LOAD", (s, e) => { if (builds.SelectedItem != null) Change(() => model.LoadBuild((string)builds.SelectedItem)); }));
         two.Controls.Add(Btn("DELETE", (s, e) => DeleteBuild()));
         bottom.Controls.Add(two);
         bottom.Controls.Add(one);
+        nudge.SectionTick(bottom, "builds", into: one);   // 2026-11-25: the two build rows, one section
     }
 
     // ---- the controller nudge (Nudge.cs) -----------------------------------------------------------------------------------
@@ -282,8 +289,7 @@ partial class PoserUi : Form {
         // 2026-11-24 (NudgeNav.cs, SliderUndo.cs): LT picks sections, the left stick a slider, the right stick tunes, A ticks, X undoes
         int nt = ticked.Count(k => !k.StartsWith("section:"));
         string n = nt > 0 ? nt + " ticked · " : "";
-        nudgeNote.Text = !nudge.Linked ? n + "start Window View and click the left stick in: LT section, LS slider, RS tune, A tick, X undo"
-            : n + "LT: section · LS: slider · RS: tune (±1, ±5) · A: tick · B: untick section · X: undo · Y: redo";
+        nudgeNote.Text = (!nudge.Linked ? n + Nudge.HELP_OFF : n) + Nudge.HELP;   // 2026-11-25: the kit's words
         nudgeNote.ForeColor = nudge.Linked ? Good : Dim;
     }
     void NudgeTick() {

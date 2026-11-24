@@ -179,6 +179,22 @@ def main():
     moved = sorted(k for k, v in joints.items() if any(abs(x - y) > 0.01 for x, y in zip(v, was.get(k, [0, 0, 0]))))
     check("down past the thumb lands on the MIDDLE finger, not the index", moved == ["l_hand_middle_0"], ", ".join(moved))
     grab("5-on-the-middle-finger.png")
+
+    # 2026-11-25: the left stick reaches buttons too: LT on the ticks row, LS right to the window's undo, A presses it
+    kids = children(hwnd)
+    for name in ("LEFT THUMB", "LEFT MIDDLE"):
+        h = [x for x, t in kids if t == name]
+        if h:
+            post_click(h[0], middle=True)   # LT: both finger sections unticked again
+    clear = [h for h, t in kids if t == "CLEAR ALL TICKS"]
+    if clear:
+        post_click(clear[0], middle=True)   # LT: the ticks row ticked, its first stop (CLEAR ALL TICKS) selected
+    pulse(wv, LSTICK_X, 1.0)                # LS right: the undo button
+    pulse(wv, BUTTONS, 1, as_int=True)      # A: pressed
+    time.sleep(2.5)
+    back = autosave_joints().get("l_hand_middle_0")
+    grab("6-undo-button.png")
+    check("LS reaches the undo button and A presses it (the middle finger back)", bool(clear) and back is not None and all(abs(x - y) < 0.01 for x, y in zip(back, was.get("l_hand_middle_0", [0, 0, 0]))), str(back))
     user32.PostMessageW(hwnd, 0x10, 0, 0)   # WM_CLOSE
     time.sleep(2)
     fake.terminate()

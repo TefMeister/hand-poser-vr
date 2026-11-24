@@ -1,5 +1,10 @@
-// Skin.cs -- the look shared by the helper apps (2026-10-25). The same file in three places, keep them the same:
-// hand-poser-vr/app/Skin.cs (the one to edit), window-view-vr/app/Skin.cs, visceral-re8-vr/dev-archive/native/zones-app/app/Skin.cs.
+// KIT FILE -- the one copy lives in hand-poser-vr/kit/; edit it THERE, then run `python tools/sync_kit.py` (it copies the kit into
+// Grip Zones, Holster Zones, Gun Poser and Animation & Timing, and `--check` fails when a copy has drifted). Every build.bat runs the
+// check first. (2026-11-25, Tefa: "if possible, unify the look of all the window view apps so it is easier for you to build that
+// navigation into all the apps around the same control layout"; until then each app carried its own drifting copy.)
+//
+// Skin.cs -- the look shared by the helper apps (2026-10-25). Older copies outside the kit, not synced: window-view-vr/app/Skin.cs,
+// visceral-re8-vr/dev-archive/native/zones-app/app/Skin.cs.
 //
 //   FancySlider  a slider drawn by us. The stock Windows TrackBar paints itself white for a moment before its dark colours, and
 //                Window View photographs the window many times a second (PrintWindow), so the white moment showed in the
@@ -13,6 +18,8 @@
 //   SkinPanel    a panel that paints the backdrop at its own place in the window, then its Tint (a see-through colour) over it.
 //                Children with a Transparent BackColor show it through.
 //   SkinButton, SkinCheckBox, SkinRadioButton: take the clicks Window View sends from the headset (see below).
+//   Look         the colours every helper window uses (2026-11-25: one set, so the five windows look the same).
+//   IPickable    a control the left stick can select (NudgeNav.cs): it draws the bright yellow frame while Picked.
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -39,7 +46,11 @@ static class Backdrop {
 
     public static void Init(Form form, string iconPath, Color background) {
         owner = form; back = background;
-        try { icon = LargestPicture(iconPath); } catch (Exception) { icon = null; }
+        // 2026-11-09 (Tefa: "animations and timings window shows 2 icons at the back"): the picture without the family tile, when it
+        // is beside the icon (<icon>_backdrop.png, from hand-poser-vr's tools/family_icons.py); the tile's edge and the film strip's
+        // rim read as two icons in the faint background. Without it, the icon's biggest picture as before
+        string plain = System.IO.Path.ChangeExtension(iconPath, null) + "_backdrop.png";
+        try { icon = System.IO.File.Exists(plain) ? new Bitmap(plain) : LargestPicture(iconPath); } catch (Exception) { icon = null; }
         form.Resize += (s, e) => { if (Rebuild()) form.Invalidate(true); };
         Rebuild();
     }
@@ -133,6 +144,23 @@ static class Backdrop {
     public static CreateParams Composited(CreateParams cp) { return cp; }
 }
 
+// the colours of every helper window (2026-11-25: the five had drifted by a shade or two; now one set)
+static class Look {
+    public static readonly Color Back = Color.FromArgb(28, 30, 38), Panel2 = Color.FromArgb(38, 41, 52), Ink = Color.FromArgb(232, 232, 236);
+    public static readonly Color Dim = Color.FromArgb(150, 155, 170), Good = Color.FromArgb(80, 190, 110), Bad = Color.FromArgb(220, 110, 90);
+    public static readonly Color Warn = Color.FromArgb(230, 190, 90), ButtonBack = Color.FromArgb(62, 67, 86), Accent = Color.FromArgb(70, 120, 200);
+    public static readonly Color Lit = Color.FromArgb(96, 78, 30);
+    public static readonly Color BoxTint = Color.FromArgb(150, 30, 44, 66);   // a section's box over the backdrop
+    public static readonly Color PickedEdge = Color.FromArgb(255, 205, 0);     // the left stick's selection
+    // the bright yellow frame round a control the left stick selected (drawn by the control itself, inside its edge)
+    public static void PickedFrame(Graphics g, Control c) {
+        using (var pen = new Pen(PickedEdge, 3f)) g.DrawRectangle(pen, 1.5f, 1.5f, c.ClientSize.Width - 3, c.ClientSize.Height - 3);
+    }
+}
+
+// a control the left stick can select (NudgeNav.cs): slider tick boxes, sliders, buttons, labelled tick boxes, options
+interface IPickable { bool Picked { get; set; } }
+
 class SkinPanel : Panel {
     Color tint = Color.Transparent;
     public Color Tint { get { return tint; } set { tint = value; Invalidate(true); } }
@@ -163,8 +191,10 @@ class SkinLabel : Label {
 // on the real desktop (WindowFromPoint), and a window used in the headset is usually behind others there, so nothing happened
 // (Tefa 2026-10-25: "clicking on any of these does not bring up the sliders in hand poser"; the drawn sliders never checked).
 // These click on a down and an up inside them, the stock way first, and themselves only when the stock way did not.
-class SkinButton : Button {
-    bool down, clicked;
+class SkinButton : Button, IPickable {
+    bool down, clicked, picked;
+    public bool Picked { get { return picked; } set { if (picked == value) return; picked = value; Invalidate(); } }   // 2026-11-25: the left stick reaches buttons
+    protected override void OnPaint(PaintEventArgs e) { base.OnPaint(e); if (picked) Look.PickedFrame(e.Graphics, this); }
     protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); if (e.Button == MouseButtons.Left) down = true; }
     protected override void OnClick(EventArgs e) { clicked = true; base.OnClick(e); }
     protected override void OnMouseUp(MouseEventArgs e) {
@@ -173,15 +203,15 @@ class SkinButton : Button {
         if (was && !clicked && e.Button == MouseButtons.Left && Enabled && ClientRectangle.Contains(e.Location)) OnClick(EventArgs.Empty);
     }
 }
-class SkinCheckBox : CheckBox {
+class SkinCheckBox : CheckBox, IPickable {
     bool down, clicked, picked;
     public SkinCheckBox() { BackColor = Color.Transparent; }
-    public static readonly Color PickedEdge = Color.FromArgb(255, 205, 0);   // 2026-11-24: the slider the left stick selected (NudgeNav.cs)
+    public static readonly Color PickedEdge = Look.PickedEdge;   // 2026-11-24: the slider the left stick selected (NudgeNav.cs)
     public bool Picked { get { return picked; } set { if (picked == value) return; picked = value; Invalidate(); } }
     // 2026-10-27 (Tefa: "please make the tick boxes bigger"): a box with no text is drawn by us, filling the control (size it
     // 28 x 28): a dark square with a bright edge, and a thick tick when on. Boxes with text keep Windows' own look.
     protected override void OnPaint(PaintEventArgs e) {
-        if (!string.IsNullOrEmpty(Text)) { base.OnPaint(e); return; }
+        if (!string.IsNullOrEmpty(Text)) { base.OnPaint(e); if (picked) Look.PickedFrame(e.Graphics, this); return; }   // 2026-11-25: a labelled box framed too
         var g = e.Graphics;
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         int side = Math.Min(ClientSize.Width, ClientSize.Height) - 2;
@@ -202,8 +232,10 @@ class SkinCheckBox : CheckBox {
         if (was && !clicked && e.Button == MouseButtons.Left && Enabled && ClientRectangle.Contains(e.Location)) OnClick(EventArgs.Empty);
     }
 }
-class SkinRadioButton : RadioButton {
-    bool down, clicked;
+class SkinRadioButton : RadioButton, IPickable {
+    bool down, clicked, picked;
+    public bool Picked { get { return picked; } set { if (picked == value) return; picked = value; Invalidate(); } }   // 2026-11-25: the left stick reaches options
+    protected override void OnPaint(PaintEventArgs e) { base.OnPaint(e); if (picked) Look.PickedFrame(e.Graphics, this); }
     public SkinRadioButton() { BackColor = Color.Transparent; }
     protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); if (e.Button == MouseButtons.Left) down = true; }
     protected override void OnClick(EventArgs e) { clicked = true; base.OnClick(e); }
@@ -214,13 +246,29 @@ class SkinRadioButton : RadioButton {
     }
 }
 
-class FancySlider : Control {
+class FancySlider : Control, IPickable {
     int min = 0, max = 100, val = 0;
     bool hot, dragging, picked;
     public bool Picked { get { return picked; } set { if (picked == value) return; picked = value; Invalidate(); } }   // 2026-11-24: the left stick's selection
     public int SmallChange = 1, LargeChange = 10;
     public bool Signed;   // the fill runs from zero (the middle) to the thumb, and a notch marks zero
-    public string LeftText, RightText;   // 2026-10-27 (Tefa: "IN on the left side of the slider, OUT on the right side"): words under the ends
+    // 2026-10-27 (Tefa: "DOWN on the left side of the slider and UP on the right side, so it's clear which way the ball will go"):
+    // the words under each end of the track; null = none
+    public string LeftText, RightText;
+    // The ends' words from a row's label: "forward / back" -> BACK on the left, FORWARD on the right (the first word is the
+    // positive, right-hand end); "size" -> SMALLER / BIGGER. Turns and other labels get none (their direction is not settled).
+    public void EndsFrom(string label) {
+        string l = (label ?? "").ToLowerInvariant();
+        if (l.Contains("size")) { LeftText = "SMALLER"; RightText = "BIGGER"; Invalidate(); return; }
+        // 2026-11-08 (Tefa: left end = down / in / left / turn left): the labels name the LEFT end first now ("left / right",
+        // "down / up", "back / forward", "aim left / right"), the turns too
+        int slash = l.IndexOf('/');
+        if (slash < 0) return;
+        string a = l.Substring(0, slash).Trim(), b = l.Substring(slash + 1).Trim();
+        a = a.Substring(a.LastIndexOf(' ') + 1); int sp = b.IndexOf(' '); if (sp > 0) b = b.Substring(0, sp);
+        if (a == "" || b == "") return;
+        LeftText = a.ToUpperInvariant(); RightText = b.ToUpperInvariant(); Invalidate();
+    }
 
     public static readonly Color TrackBack = Color.FromArgb(18, 20, 27), TrackEdge = Color.FromArgb(78, 84, 106);
     public static readonly Color FillA = Color.FromArgb(56, 196, 232), FillB = Color.FromArgb(150, 108, 245);
@@ -318,10 +366,10 @@ class FancySlider : Control {
         Color ring = on ? (tx - Left0 < Width0 / 2f ? FillA : FillB) : TrackEdge;
         using (var pen = new Pen(ring, 3f)) g.DrawEllipse(pen, thumb.X + 1.5f, thumb.Y + 1.5f, thumb.Width - 3, thumb.Height - 3);
         using (var pip = new SolidBrush(on ? Color.FromArgb(60, 64, 82) : TrackEdge)) g.FillEllipse(pip, tx - 2, cy - 2, 4, 4);
-        if (LeftText != null || RightText != null) {
+        if (LeftText != null || RightText != null) {   // which end is which, under the track
             using (var f = new Font("Segoe UI Semibold", 7.5f))
             using (var br = new SolidBrush(Color.FromArgb(on ? 190 : 90, 200, 206, 222))) {
-                float ty = cy + TRACK_H / 2f + 4;
+                float ty = cy + TRACK_H / 2f + 5;
                 if (LeftText != null) g.DrawString(LeftText, f, br, Left0 - 4, ty);
                 if (RightText != null) { var sz = g.MeasureString(RightText, f); g.DrawString(RightText, f, br, Left0 + Width0 + 4 - sz.Width, ty); }
             }
@@ -363,7 +411,7 @@ class FancySlider : Control {
         if (dragging && !Capture) { dragging = false; Invalidate(); if (Released != null) Released(); }
     }
     // 2026-10-25: the wheel moved any slider it passed over while a long window was being scrolled, and Window View's right stick
-    // scrolls with the wheel, so scrolling through Grab Zones in the headset changed values on the way. The wheel now moves a slider
+    // scrolls with the wheel, so scrolling through Grip Zones in the headset changed values on the way. The wheel now moves a slider
     // only once it has been clicked (it has the focus); otherwise it scrolls the list the slider sits in.
     protected override void OnMouseWheel(MouseEventArgs e) {
         if (!Focused || !Enabled) {

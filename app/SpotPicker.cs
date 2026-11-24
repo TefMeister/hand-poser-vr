@@ -19,13 +19,14 @@ class SpotPicker : SkinPanel {
     readonly Func<string> dataDir;       // hand_poser's data folder (null = no game)
     readonly Color ink, dim, picked, real;
     readonly FlowLayoutPanel leftRow, rightRow;
+    public readonly FlowLayoutPanel Head;   // 2026-11-25: the window puts the section tick in it (NudgeNav.cs)
     string gun = "", realSpot = "", pickL, pickR;
 
     public SpotPicker(Func<string> dataDir, Color ink, Color dim, Func<string, EventHandler, int, Button> btn) {
         this.dataDir = dataDir; this.ink = ink; this.dim = dim;
         picked = Color.FromArgb(60, 120, 200); real = Color.FromArgb(62, 67, 86);
         Dock = DockStyle.Top; Height = 3 * 34 + 8; Tint = Color.FromArgb(60, 30, 44, 66);
-        var head = new FlowLayoutPanel { Dock = DockStyle.Top, Height = HEAD_H, BackColor = Color.Transparent, WrapContents = false };
+        var head = Head = new FlowLayoutPanel { Dock = DockStyle.Top, Height = HEAD_H, BackColor = Color.Transparent, WrapContents = false };
         head.Controls.Add(new SkinLabel { Text = "SPOTS:", AutoSize = true, ForeColor = dim, Font = new Font("Segoe UI Semibold", 9f), Padding = new Padding(4, 7, 4, 0) });
         head.Controls.Add(btn("FOLLOW THE GAME", (s, e) => { pickL = pickR = null; Rebuild(); Fire(); }, 0));
         leftRow = HandRow(); rightRow = HandRow();
