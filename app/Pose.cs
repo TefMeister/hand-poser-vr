@@ -196,7 +196,15 @@ class PoseModel {
             if (!groups.TryGetValue(g, out list)) { list = new List<Row>(); groups[g] = list; order.Add(g); }
             list.Add(r);
         }
-        return order.Where(g => groups[g].Count >= 2).Select(g => new KeyValuePair<string, List<Row>>(g, groups[g])).ToList();
+        // 2026-11-24 (Tefa: "when i just move my left hand to various activation points on guns, the hand poser order of rows
+        // changes, sometimes tip is up and base down"): the rows came in the order the loaded pose stored them, and some hand
+        // spots' poses keep a finger tip first. Inside a finger the joints are now always base, middle, tip (by the joint's number).
+        return order.Where(g => groups[g].Count >= 2)
+            .Select(g => new KeyValuePair<string, List<Row>>(g, groups[g].OrderBy(r => JointNumber(r.Name)).ToList())).ToList();
+    }
+    static int JointNumber(string name) {
+        var m = System.Text.RegularExpressions.Regex.Match(name ?? "", @"(\d+)$");
+        return m.Success ? int.Parse(m.Groups[1].Value) : int.MaxValue;
     }
 
     // ---- command.json to the game -------------------------------------------------------------------------------------
