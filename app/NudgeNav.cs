@@ -20,6 +20,8 @@
 //   LT: Window View 1.14 sends the middle button at the left dot while a helper holds the buttons; here it ticks / unticks the
 //     section of the part under it (and selects its first slider when nothing in the sections is selected)
 //   X: undo on the last slider used (SliderUndo.cs)
+//   2026-11-24 later (Tefa: "Y redo, X undo B deselect all ticks in the selected section"): Y redo, B unticks the sliders of the
+//     highlighted section(s); CLEAR ALL TICKS on the window still clears everything. A grip held (a window carried) stops all of it
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -162,6 +164,11 @@ partial class Nudge {
         pickedKey = (string)best.Tag;
         ScrollTo(best);
         Frame(true);
+    }
+
+    // B (2026-11-24): the slider ticks of the highlighted section(s) off; the section ticks stay
+    void UntickScope() {
+        foreach (var b in ScopeTicks()) if (b.Checked) b.Checked = false;
     }
 
     // A: the selected slider's tick box flips (its own CheckedChanged keeps the app's list right)

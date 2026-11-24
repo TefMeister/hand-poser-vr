@@ -137,6 +137,12 @@ def main():
     last = commands()[-1] if commands() else ""
     check("X undoes the last slider: the index knuckle back to 0", ("l_hand_index_0=[0, 0, 0]" in last or "l_hand_index_0=[0.0, 0.0, 0.0]" in last) and last != stepped,
           stepped.strip() + " -> " + last.strip())
+    pulse(wv, BUTTONS, 2, as_int=True)   # Y: redo
+    time.sleep(0.5)
+    again = commands()[-1] if commands() else ""
+    check("Y redoes it", stepped.split("l_hand_index_0=")[-1].strip() == again.split("l_hand_index_0=")[-1].strip(),
+          again.strip())
+    pulse(wv, BUTTONS, 8, as_int=True)   # X: undo again, to start the rest from 0
     pulse(wv, BUTTONS, 1, as_int=True)   # A: tick it
     pulse(wv, LSTICK_X, -1.0)            # left: the first slider of that row
     pulse(wv, BUTTONS, 1, as_int=True)   # A: tick that one too
@@ -146,7 +152,14 @@ def main():
     time.sleep(0.5)
     new = commands()[before:]
     check("with two ticked, the right stick steps (a command went out)", len(new) > 0)
-    pulse(wv, BUTTONS, 2, as_int=True)   # Y: every tick off
+    pulse(wv, BUTTONS, 4, as_int=True)   # B: the ticks of this section off
+    before = len(commands())
+    put_f(wv, 576, 1.0)                  # the right grip held (a window carried in Window View) ...
+    time.sleep(0.2)
+    pulse(wv, STICK_X, 1.0)              # ... the right stick does nothing
+    put_f(wv, 576, 0.0)
+    time.sleep(0.6)
+    check("a grip held: the right stick moves no slider", len(commands()) == before, "%d commands" % (len(commands()) - before))
 
     # LT (Window View 1.14 sends the middle button): the thumb and the middle finger picked as sections; the left stick then
     # walks the thumb's three rows and goes on to the middle finger, past the index finger

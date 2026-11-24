@@ -47,6 +47,9 @@ partial class Nudge : IDisposable {
     // Window View's shared block (window-view-vr shared.h, header v2 of 636 bytes)
     const string MAPPING = @"Local\FlatToVR_WindowView_v2";
     const int HEADER = 644, CTRL_MODE = 536, STICK_Y = 580, BUTTONS = 584, BUTTON_CLAIM = 628, STICK_X = 636;
+    const int SQUEEZE_R = 576, SQUEEZE_L = 620;   // 2026-11-24: the grips (a window being carried in Window View)
+    const float GRIP_ON = 0.6f, GRIP_OFF = 0.4f;
+    bool gripHeld;
     const int B_A = 1, B_Y = 2, B_B = 4, B_X = 8;
     const float STICK_ON = 0.6f, STICK_OFF = 0.3f;   // the stick counts as pushed past ON, let go below OFF
     public const int HOLD_MS = 400;     // a stick held this long starts repeating
@@ -238,16 +241,22 @@ partial class Nudge : IDisposable {
         else Shade(Owner && anyTicked ? Active : null);
         if (Navigate) Frame(Owner);
         if (!Open()) return 0;
-        int buttons; float sx, sy, lx = 0, ly = 0; bool ctrl;
+        int buttons; float sx, sy, lx = 0, ly = 0, gr = 0, gl = 0; bool ctrl;
         try {
             ctrl = view.ReadInt32(CTRL_MODE) != 0;
             buttons = view.ReadInt32(BUTTONS);
             sx = view.ReadSingle(STICK_X);
             sy = view.ReadSingle(STICK_Y);
             if (Navigate) { lx = view.ReadSingle(LSTICK_X); ly = view.ReadSingle(LSTICK_Y); }
+            gr = view.ReadSingle(SQUEEZE_R); gl = view.ReadSingle(SQUEEZE_L);
             if (ctrl && Owner && (anyTicked || mine)) view.Write(BUTTON_CLAIM, GetTickCount64());
         } catch (Exception) { Close(); return 0; }
         if (!ctrl || !Owner) { lastButtons = buttons; stickDir = 0; navDir = 0; return 0; }
+        // 2026-11-24 (Tefa: "LG and GR to grab and move windows must suppress all other button functions, right now i can grab the
+        // window with LG to move it and RS will still move to sliders in that window"): a grip held = a window being carried in
+        // Window View: no stick, no button does anything here until both grips are let go
+        gripHeld = gripHeld ? (gr > GRIP_OFF || gl > GRIP_OFF) : (gr > GRIP_ON || gl > GRIP_ON);
+        if (gripHeld) { lastButtons = buttons; stickDir = 0; navDir = 0; return 0; }
         if (Navigate) {   // 2026-11-24 (NudgeNav.cs): the left stick picks a slider in the highlighted part, A ticks it
             NavStick(lx, ly);
             if (mine && Pressed(buttons, B_A)) ToggleSelected();
@@ -257,7 +266,11 @@ partial class Nudge : IDisposable {
         if (mine) {   // Y undo, B redo, X untick everything: the window clicked last only
             // 2026-11-14 (Tefa: "only the actual buttons on the window to do it ... X is right click for left controller anyway and Y
             // can stay as clear all, that i use"): Y unticks every box; undo / redo only by the window's own buttons; X and B free
-            if (Pressed(buttons, B_Y)) UntickAll();
+            // 2026-11-24 (Tefa: "Y redo, X undo B deselect all ticks in the selected section"): in Hand Poser (Navigate) Y is redo and
+            // B unticks the sliders of the highlighted section(s) (NudgeNav.cs); the other helpers keep Y = untick everything
+            if (!Navigate && Pressed(buttons, B_Y)) UntickAll();
+            if (Navigate && Pressed(buttons, B_Y)) UndoLast(true);
+            if (Navigate && Pressed(buttons, B_B)) UntickScope();
         }
         lastButtons = buttons;
         if (!anyTicked) { stickDir = 0; return 0; }

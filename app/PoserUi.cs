@@ -283,7 +283,7 @@ partial class PoserUi : Form {
         int nt = ticked.Count(k => !k.StartsWith("section:"));
         string n = nt > 0 ? nt + " ticked · " : "";
         nudgeNote.Text = !nudge.Linked ? n + "start Window View and click the left stick in: LT section, LS slider, RS tune, A tick, X undo"
-            : n + "LT: section · LS: slider · RS: tune (±1, ±5) · A: tick · X: undo · Y: clear ticks";
+            : n + "LT: section · LS: slider · RS: tune (±1, ±5) · A: tick · B: untick section · X: undo · Y: redo";
         nudgeNote.ForeColor = nudge.Linked ? Good : Dim;
     }
     void NudgeTick() {

@@ -136,9 +136,10 @@ being set); a file `reframework\data\hand_poserlend_preview.json` (any content)
   - **Right stick**: tunes the picked slider (left / right -1 / +1, up / down +5 / -5, held repeats); with sliders ticked in
     the sections, it moves the ticked ones together.
   - **A**: ticks / unticks the picked slider, to tune several at once.
-  - **X**: undo on the last slider used (the same as the window's ↶; ↷ redoes). Only the last slider (or the ticked set moved
+  - **X**: undo on the last slider used (the window's ↶), **Y**: redo (↷). Only the last slider (or the ticked set moved
     together) keeps its steps: moving another one forgets them, and so does another gun or spot.
-  - **Y**: every tick off. **B**: nothing yet.
+  - **B**: unticks the sliders of the highlighted section(s) (the section ticks stay). CLEAR ALL TICKS on the window clears all.
+  - **A grip held** (a window carried in Window View): nothing here answers until it is let go.
   - **RT** (right trigger, at the red dot): the left mouse click, the only click. A and X send no right click here.
   (`app/Nudge.cs`, `app/NudgeNav.cs`, `app/SliderUndo.cs` read Window View's shared block; `test
 av_test.py` checks it with a
