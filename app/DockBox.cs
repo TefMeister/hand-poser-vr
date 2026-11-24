@@ -51,7 +51,13 @@ class DockBox : SkinPanel {
         open = startOpen;
         Dock = DockStyle.Top; Tint = Color.FromArgb(150, 30, 44, 66); Padding = new Padding(6, 2, 6, 2);
         fold = btn("", (s, e) => SetOpen(!open), 0);
-        fold.Location = new Point(6, 4);
+        fold.Location = new Point(40, 4);
+        // 2026-11-24 (Tefa: the tick marks "will serve as the chosen section"): the box's SECTION tick, left of its title; ticked,
+        // the left stick walks its sliders (NudgeNav.cs); LT on the box ticks it too
+        string sectionKey = "section:" + "dock";
+        var sectionTick = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked(sectionKey), Location = new Point(6, 3), Tag = sectionKey };
+        sectionTick.CheckedChanged += (o, e) => ui.SetTicked(sectionKey, sectionTick.Checked);
+        Controls.Add(sectionTick);
         where = new SkinLabel { AutoSize = true, ForeColor = Dim, Font = new Font("Segoe UI Semibold", 11f) };
         Controls.Add(fold); Controls.Add(where);
         foreach (var a in axes) {
@@ -69,39 +75,7 @@ class DockBox : SkinPanel {
         }
         saveTimer.Interval = SAVE_DEBOUNCE_MS; saveTimer.Tick += (s, e) => { saveTimer.Stop(); Save(); };
         Layout += (o, e) => DoLayout();
-        MakeHistoryButtons(btn);
         SetOpen(open);
-    }
-    string HistKey { get { return loadedKey == "" ? null : "dock:" + Side + ":" + loadedKey; } }   // per hand, gun and spot
-
-    // ---- 2026-11-14: the box's own undo / redo (BoxHistory.cs) ---------------------------------------------------------------
-    Button undoB, redoB;
-    DateTime lastMark = DateTime.MinValue;
-    int[] Values() { var v = new int[axes.Length]; for (int i = 0; i < axes.Length; i++) v[i] = axes[i].Bar.Value; return v; }
-    void MarkNow() { if (HistKey != null) BoxHistory.Mark(HistKey, Values()); lastMark = DateTime.Now; ShowHistory(); }
-    void MarkStream() { if ((DateTime.Now - lastMark).TotalMilliseconds > 400) MarkNow(); else lastMark = DateTime.Now; }   // a held button: one step
-    void History(bool redo) {
-        if (HistKey == null) return;
-        var v = BoxHistory.Step(HistKey, Values(), redo);
-        if (v == null) return;
-        syncing = true;
-        for (int i = 0; i < axes.Length && i < v.Length; i++) { axes[i].Bar.Value = Math.Max(axes[i].Bar.Minimum, Math.Min(axes[i].Bar.Maximum, v[i])); ShowValue(axes[i]); }
-        syncing = false;
-        saveTimer.Stop(); saveTimer.Start();
-        ShowHistory();
-    }
-    void ShowHistory() {
-        if (undoB == null) return;
-        bool u = HistKey != null && BoxHistory.CanUndo(HistKey), r = HistKey != null && BoxHistory.CanRedo(HistKey);
-        if (undoB.Enabled != u) undoB.Enabled = u;
-        if (redoB.Enabled != r) redoB.Enabled = r;
-    }
-    void MakeHistoryButtons(Func<string, EventHandler, int, Button> btn) {
-        undoB = btn("↶", (s, e) => History(false), 34); redoB = btn("↷", (s, e) => History(true), 34);
-        Controls.Add(undoB); Controls.Add(redoB);
-        foreach (var a in axes) a.Bar.Pressed += () => MarkNow();
-        Layout += (o, e) => { redoB.Location = new Point(ClientSize.Width - redoB.Width - 8, 4); undoB.Location = new Point(redoB.Left - undoB.Width - 4, 4); };
-        ShowHistory();
     }
 
     public bool Open { get { return open; } }
@@ -109,7 +83,7 @@ class DockBox : SkinPanel {
     void SetOpen(bool on) {
         open = on;
         fold.Text = open ? "LEFT HAND, DOCKED  ▲" : "LEFT HAND, DOCKED  ▼";
-        foreach (Control c in Controls) if (c != fold && c != where) c.Visible = open;
+        foreach (Control c in Controls) if (c != fold && c != where && !((c.Tag as string) ?? "").StartsWith("section:")) c.Visible = open;   // the section tick stays
         Height = open ? OPEN_H : SHUT_H;
         if (HeightChanged != null) HeightChanged();
     }
@@ -204,7 +178,6 @@ class DockBox : SkinPanel {
         where.Text = !alive ? "the game's zones script is not running" : docked ? "on " + SpotName(spot) : (Side == "r" ? "right hand not docked: dock it (RG) to pose its wrist" : "not docked: dock it (LG) to pose its wrist");
         where.ForeColor = docked ? Ink : Dim;
         foreach (var a in axes) if (a.Bar.Enabled != docked) a.Bar.Enabled = docked;
-        ShowHistory();
         string key = gun + ":" + spot;
         if (docked && key != loadedKey && !saveTimer.Enabled) {   // a new spot: its own numbers
             loadedKey = key;
@@ -230,7 +203,6 @@ class DockBox : SkinPanel {
         bool any = false;
         foreach (var a in axes) {
             if (!ticked.Contains("dock:" + a.Key)) continue;
-            if (!any) MarkStream();   // 2026-11-14: a controller step is an undo step too
             double per = a.Unit == "cm" ? NUDGE_CM : 1.0;
             a.Bar.Value += (int)Math.Round(n * per * STEPS);
             ShowValue(a);
@@ -250,7 +222,6 @@ class DockBox : SkinPanel {
         foreach (var a in axes) {
             object v;
             if (!d.TryGetValue(a.Key, out v)) continue;
-            if (!any) MarkStream();
             a.Bar.Value = Math.Max(a.Bar.Minimum, Math.Min(a.Bar.Maximum, (int)Math.Round(Json.Num(v, 0) * STEPS)));
             ShowValue(a);
             any = true;

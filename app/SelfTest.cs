@@ -83,21 +83,29 @@ static class SelfTest {
               HandSpots.Line("spare in hand, docked on the magazine", "l", "LEMI") == "LEFT HAND: spare in hand, docked on the gun's magazine" &&
               HandSpots.Line("spare in hand, pulling the magazine out", "l", "LEMI") == "LEFT HAND: spare in hand, pulling the gun's magazine out" &&
               HandSpots.Line("spare in hand, magazine still in the gun", "l", "LEMI") == "LEFT HAND: spare in hand, the gun's magazine still in");
-        {   // 2026-11-14: each row's own undo / redo, per pose
-            var r = new Row { Name = "l_hand_index_0", X = 1, Y = 2, Z = 3, Known = true };
-            RowHistory.Mark("LEMI @ magazine", r); r.Z = 10;
-            double x, y, z;
-            bool back = RowHistory.Step("LEMI @ magazine", r, false, out x, out y, out z);
-            Check("a row's undo gives its own numbers back", back && x == 1 && y == 2 && z == 3);
-            Check("...and not in another pose", !RowHistory.CanUndo("LEMI @ slide", "l_hand_index_0") && !RowHistory.CanUndo("LEMI @ magazine", "l_hand_middle_0"));
-            r.Z = 3;
-            Check("redo takes it forward again, once", RowHistory.Step("LEMI @ magazine", r, true, out x, out y, out z) && z == 10 && !RowHistory.CanRedo("LEMI @ magazine", r.Name));
-        }
-        {   // 2026-11-14: the docked-wrist and magazine boxes' own undo / redo, per gun (and spot)
-            BoxHistory.Mark("mag:3046", new[] { 1, 2, 3, 4, 5, 6 });
-            var back = BoxHistory.Step("mag:3046", new[] { 9, 2, 3, 4, 5, 6 }, false);
-            Check("a box's undo gives all six sliders back", back != null && back[0] == 1 && back[5] == 6);
-            Check("...redo the way forward, and nothing for another gun", BoxHistory.CanRedo("mag:3046") && !BoxHistory.CanUndo("mag:3040"));
+        {   // 2026-11-24: the window's one undo, on the last slider used only (SliderUndo.cs)
+            var hist = new SliderUndo();
+            var now = new Dictionary<string, int> { { "a:X", 50 }, { "b:Y", 7 } };
+            Func<string, int?> read = k => now.ContainsKey(k) ? now[k] : (int?)null;
+            hist.Begin("LEMI @ slide", new Dictionary<string, int> { { "a:X", 10 } }); now["a:X"] = 20;
+            hist.Begin("LEMI @ slide", new Dictionary<string, int> { { "a:X", 20 } }); now["a:X"] = 50;
+            var u = hist.Undo("LEMI @ slide", read);
+            Check("undo puts the last slider back one step", u != null && u["a:X"] == 20);
+            now["a:X"] = 20;
+            var u2 = hist.Undo("LEMI @ slide", read);
+            Check("...and again, to where it started", u2 != null && u2["a:X"] == 10 && !hist.CanUndo("LEMI @ slide"));
+            now["a:X"] = 10;
+            var r = hist.Redo("LEMI @ slide", read);
+            Check("redo goes forward again", r != null && r["a:X"] == 20 && hist.CanRedo("LEMI @ slide"));
+            now["a:X"] = 20;
+            hist.Begin("LEMI @ slide", new Dictionary<string, int> { { "b:Y", 7 } }); now["b:Y"] = 9;
+            var u3 = hist.Undo("LEMI @ slide", read);
+            Check("another slider used: the first one's steps are forgotten", u3 != null && u3.ContainsKey("b:Y") && !u3.ContainsKey("a:X") && !hist.CanUndo("LEMI @ slide"));
+            hist.Begin("LEMI @ slide", new Dictionary<string, int> { { "b:Y", 7 } });
+            Check("a new step clears the redo", !hist.CanRedo("LEMI @ slide"));
+            Check("another pose: nothing to undo", !hist.CanUndo("LEMI @ magazine") && hist.Undo("LEMI @ magazine", read) == null && !hist.CanUndo("LEMI @ slide"));
+            hist.Begin("p", new Dictionary<string, int> { { "a:X", 1 }, { "b:Y", 2 } });
+            Check("the ticked sliders stepped together count as one", hist.Keys == "a:X|b:Y" && hist.CanUndo("p"));
         }
         Check("the magazine box is live with a magazine in the left hand (13, 16-19) and not otherwise",
               MagBox.Holding(13) && MagBox.Holding(16) && MagBox.Holding(19) && !MagBox.Holding(4) && !MagBox.Holding(15) && !MagBox.Holding(20));

@@ -56,6 +56,7 @@ partial class PoserUi : Form {
         // 2026-11-24 evening (Tefa: "make the window a bit bigger and make both the left and right side end at the same bottom line"):
         // the builds row is added first so it docks under the RIGHT column only; the left column runs the whole height (FitHeight)
         nudge.Navigate = true;   // the left stick picks a slider in the highlighted part, A ticks it (NudgeNav.cs)
+        nudge.UndoContext = () => poseGun ?? "";   // 2026-11-24: the one undo forgets its steps when the pose changes (SliderUndo.cs)
         BuildBottom();
         BuildTop();
         rowsPanel = new SkinPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(6, 4, 6, 4) };
@@ -151,6 +152,11 @@ partial class PoserUi : Form {
         var nudgeRow = Row(34);
         nudgeRow.Dock = DockStyle.Bottom;   // 2026-11-24: the left column's last row sits on the window's bottom line
         nudgeRow.Controls.Add(Btn("CLEAR ALL TICKS", (s, e) => ClearTicks()));
+        // 2026-11-24 (Tefa: "we only need one set of arrow icons and they will only work on the last slider that was used"):
+        // the window's one undo / redo (SliderUndo.cs); X on the controller is the same undo
+        undoAll = Btn("↶", (s, e) => { nudge.UndoLast(false); ShowUndo(); }, 40);
+        redoAll = Btn("↷", (s, e) => { nudge.UndoLast(true); ShowUndo(); }, 40);
+        nudgeRow.Controls.Add(undoAll); nudgeRow.Controls.Add(redoAll);
         nudgeNote = new SkinLabel { AutoSize = true, Padding = new Padding(4, 6, 0, 0), ForeColor = Dim };
         nudgeRow.Controls.Add(nudgeNote);
         // 2026-10-28: the docked left wrist (Visceral RE8), where the joint list was; folds on its own header
@@ -216,6 +222,13 @@ partial class PoserUi : Form {
     const int MIN_CLIENT_H = 1180, STRIP_H = 8, FIT_SLACK = 6;
     int leftNeed;
     SkinPanel bottomPanel;
+    Button undoAll, redoAll;
+    void ShowUndo() {
+        if (undoAll == null) return;
+        bool u = nudge.CanUndo, r = nudge.CanRedo;
+        if (undoAll.Enabled != u) undoAll.Enabled = u;
+        if (redoAll.Enabled != r) redoAll.Enabled = r;
+    }
     void FitHeight() {
         if (topPanel == null || rowsPanel == null || bottomPanel == null) return;
         int right = rowsPanel.Padding.Vertical + bottomPanel.Height;
@@ -233,8 +246,7 @@ partial class PoserUi : Form {
         Controls.Add(bottom);
         bottomPanel = bottom;
         var one = Row(32);
-        // 2026-11-14 (Tefa: "undo and redo needs to be under each row"): the window's UNDO / REDO are gone; each joint row has
-        // its own ↶ / ↷ for the pose it is in (RowHistory.cs)
+        // (2026-11-14 to 11-24 each row and box had its own ↶ / ↷; since 2026-11-24 one pair, left of the ticks line: SliderUndo.cs)
         one.Controls.Add(new SkinLabel { Text = "   build name:", AutoSize = true, ForeColor = Dim, Padding = new Padding(0, 6, 0, 0) });
         buildName = new TextBox { Width = 170, BackColor = Panel2, ForeColor = Ink, BorderStyle = BorderStyle.FixedSingle };
         one.Controls.Add(buildName);
@@ -267,10 +279,11 @@ partial class PoserUi : Form {
     }
     void ShowNudge() {
         if (nudgeNote == null) return;
-        // 2026-11-24 (NudgeNav.cs): the left stick picks, the right stick tunes, A ticks more than one
-        string n = ticked.Count > 0 ? ticked.Count + " ticked · " : "";
-        nudgeNote.Text = !nudge.Linked ? n + "start Window View and click the left stick in: LS picks a slider, RS tunes it, A ticks"
-            : n + "LS: pick a slider in the yellow part · RS: tune (±1, ±5) · A: tick more · Y: clear ticks";
+        // 2026-11-24 (NudgeNav.cs, SliderUndo.cs): LT picks sections, the left stick a slider, the right stick tunes, A ticks, X undoes
+        int nt = ticked.Count(k => !k.StartsWith("section:"));
+        string n = nt > 0 ? nt + " ticked · " : "";
+        nudgeNote.Text = !nudge.Linked ? n + "start Window View and click the left stick in: LT section, LS slider, RS tune, A tick, X undo"
+            : n + "LT: section · LS: slider · RS: tune (±1, ±5) · A: tick · X: undo · Y: clear ticks";
         nudgeNote.ForeColor = nudge.Linked ? Good : Dim;
     }
     void NudgeTick() {
@@ -281,22 +294,16 @@ partial class PoserUi : Form {
             return;
         }
         var use = nudge.Filter(ticked);   // 2026-11-08: only the part clicked last (Nudge.cs), when it has ticks
+        if (started) nudge.BeginUndo(use);   // 2026-11-24: the last slider(s) used, for ↶ / ↷ and X (SliderUndo.cs)
         if (dockShown) { dockBox.Step(step, use); magBox.Step(step, use); spareBox.Step(step, use); }   // the docked wrist's and the magazine's ticked sliders
         if (use.All(k => k.StartsWith("dock:"))) return;
         if (started) model.Mark();   // one undo step per press (its repeats included)
-        bool markRows = started;     // 2026-11-14: and one step on each row it moves (RowHistory.cs), below
         nudgeSaving = true;
-        // every slider to step, once each, whether ticked on its own or through its finger's bar
+        // every slider to step, once each (2026-11-24: the finger bars are gone; a section tick steps nothing)
         var targets = new HashSet<string>();
         foreach (var r in model.Rows) foreach (var a in new[] { "X", "Y", "Z" }) if (use.Contains(r.Name + ":" + a)) targets.Add(r.Name + ":" + a);
-        foreach (var g in model.Groups()) {
-            if (!use.Contains("group:" + g.Key)) continue;
-            string axis = GroupAxis(g.Key);
-            foreach (var r in g.Value) targets.Add(r.Name + ":" + axis);
-        }
         foreach (var r in model.Rows) {
             if (!r.Known) continue;
-            if (markRows && (targets.Contains(r.Name + ":X") || targets.Contains(r.Name + ":Y") || targets.Contains(r.Name + ":Z"))) RowHistory.Mark(poseGun, r);
             // X / Y move toward the slider's left end, A / B toward its right end (HandAxes.cs, 2026-11-08)
             if (targets.Contains(r.Name + ":X")) r.X = PoseModel.Clamp(r.X + step * HandAxes.Sign(r.Name, 0));
             if (targets.Contains(r.Name + ":Y")) r.Y = PoseModel.Clamp(r.Y + step * HandAxes.Sign(r.Name, 1));
@@ -358,6 +365,7 @@ partial class PoserUi : Form {
         if (village && model.Connected) spotPicker.Refresh(model.Gun, model.Spot);
         if (village) { dockBox.Side = shownSide == "r" ? "r" : "l"; dockBox.Poll(link.Folder); magBox.Poll(link.Folder); spareBox.Poll(link.Folder); }
         RemotePoll();   // 2026-11-23 (Remote.cs): a pose set from outside, as if the sliders had moved
+        ShowUndo();
         UpdateStatus();
         if (demo) Demo();
     }
@@ -553,13 +561,10 @@ partial class PoserUi : Form {
         return h.StartsWith("LEFT") ? "l" : h.StartsWith("RIGHT") ? "r" : "";
     }
     bool SideShown(string side) { return shownSide == "" || side == "" || side == shownSide; }
-    readonly List<GroupRow> groupRows = new List<GroupRow>();
     void RebuildRows() {
         rowsPanel.SuspendLayout();
         foreach (var r in rows) r.Dispose();
-        foreach (var g in groupRows) g.Dispose();
         rows.Clear();
-        groupRows.Clear();
         rowsPanel.Controls.Clear();
         foreach (var b in fingerBoxes.Values) b.Dispose();
         fingerBoxes.Clear();
@@ -574,16 +579,16 @@ partial class PoserUi : Form {
         foreach (var g in groups) {
             if (!SideShown(SideOfGroup(g.Key))) continue;   // 2026-11-02: the other hand, out of view
             var box = new SkinPanel { Dock = DockStyle.Top, Tint = Color.FromArgb(150, 30, 44, 66), Padding = new Padding(6, 2, 6, 4), Margin = new Padding(0, 0, 0, 6) };
-            var head = new SkinLabel { Text = JointNames.FingerHeader(g.Key), Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Ink, Font = new Font("Segoe UI Semibold", 14f) };
+            // 2026-11-24 evening (Tefa: "please remove the bend all tick mark and the slider, but leave the tick marks, these will
+            // serve as the chosen section so if i want LS to move through multiple sections, i can tick the thumb and middle finger
+            // and it will bypass the index finger"): the BEND ALL bar is gone; its tick sits in the header as the SECTION tick
+            var head = SectionHead(JointNames.FingerHeader(g.Key), "finger:" + g.Key);
             var gap = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = Color.Transparent };
-            var gr = new GroupRow(g.Key, g.Value, this);
-            groupRows.Add(gr);
             var mine = new List<JointRow>();
             foreach (var r in g.Value) { var jr = new JointRow(r, this, GroupAxis(g.Key)); mine.Add(jr); rows.Add(jr); }
             for (int i = mine.Count - 1; i >= 0; i--) box.Controls.Add(mine[i]);   // docked Top: add in reverse
-            box.Controls.Add(gr);
             box.Controls.Add(head);
-            int h = box.Padding.Vertical + head.Height + gr.Height;
+            int h = box.Padding.Vertical + head.Height;
             foreach (var jr in mine) h += jr.Height;
             box.Height = h;
             fingerBoxes[g.Key] = box;
@@ -625,93 +630,26 @@ partial class PoserUi : Form {
         }
         if (box != null) rowsPanel.AutoScrollPosition = new Point(0, box.Top - rowsPanel.AutoScrollPosition.Y);
     }
-    // the bend axis changed on a finger's bar: its joints' IN / OUT words move to that axis
-    internal void BendAxisChanged(string group, string axis) {
-        foreach (var r in rows) if (PoseModel.GroupOf(r.Model.Name) == group) r.SetBendAxis(axis);
-    }
 
-    // a finger group's bend slider: while dragged it adds its value to every joint of the finger on the chosen axis, from where
-    // they stood when it was taken hold of; let go, it springs back to 0 (a nudge, as often as needed). The joints' own
-    // sliders follow live.
-    internal void GroupPressed() { model.Mark(); UpdateStatus(); }
-    internal void GroupMoved() { foreach (var row in rows) row.PullFromModel(); RequestSend(); }
-    internal void GroupReleased() { try { model.Autosave(); } catch (IOException) { } }
     internal string GroupAxis(string group) { return settings.Get("axis." + group, "Z"); }
-    internal void SetGroupAxis(string group, string axis) { settings.Set("axis." + group, axis); }
 
-    class GroupRow : SkinPanel {
-        readonly string group;
-        readonly List<Row> members;
-        readonly PoserUi ui;
-        readonly FancySlider bend;
-        readonly Button axis;
-        readonly Label value;
-        readonly CheckBox tick;
-        double[] bases;
-
-        public GroupRow(string group, List<Row> members, PoserUi ui) {
-            this.group = group; this.members = members; this.ui = ui;
-            Dock = DockStyle.Top; Height = 40; Tint = Color.FromArgb(185, 40, 64, 96); Padding = new Padding(6, 2, 6, 2);
-            var name = new SkinLabel { Text = "BEND ALL", AutoSize = true, ForeColor = Ink, Font = new Font(ui.Font, FontStyle.Bold), Location = new Point(6, 11) };
-            axis = ui.Btn("axis " + ui.GroupAxis(group), (s, e) => NextAxis(), 64);
-            axis.Height = 26;
-            value = new SkinLabel { AutoSize = true, ForeColor = Dim, Location = new Point(0, 11) };
-            bend = new FancySlider { Minimum = -900, Maximum = 900, SmallChange = 5, LargeChange = 50, Height = 34, Signed = true };
-            BarWords();
-            bend.Pressed += () => { ui.GroupPressed(); foreach (var r in members) RowHistory.Mark(ui.poseGun, r); bases = members.Select(r => Axis(r)).ToArray(); };
-            bend.Scroll += (o, e) => Apply();
-            bend.Released += () => { bases = null; ui.syncing = true; bend.Value = 0; ui.syncing = false; ShowValue(); ui.GroupReleased(); };
-            tick = new SkinCheckBox { Width = 28, Height = 28, Checked = ui.IsTicked("group:" + group), Location = new Point(6, 6), Tag = "group:" + group };
-            tick.CheckedChanged += (o, e) => ui.SetTicked("group:" + group, tick.Checked);
-            name.Location = new Point(40, 11);
-            Controls.Add(tick); Controls.Add(name); Controls.Add(axis); Controls.Add(bend); Controls.Add(value);
-            Layout += (o, e) => {
-                int w = ClientSize.Width;
-                axis.Location = new Point(w - axis.Width - 6, 7);
-                value.Location = new Point(axis.Left - 70, 11);
-                int left = name.Right + 10;
-                bend.Location = new Point(left, 5);
-                bend.Width = Math.Max(60, value.Left - left - 6);
-            };
-            ShowValue();
-        }
-        string AxisName() { return ui.GroupAxis(group); }
-        double Axis(Row r) { string a = AxisName(); return a == "X" ? r.X : a == "Y" ? r.Y : r.Z; }
-        void NextAxis() {
-            string a = AxisName(), next = a == "X" ? "Y" : a == "Y" ? "Z" : "X";
-            ui.SetGroupAxis(group, next);
-            axis.Text = "axis " + next;
-            BarWords();
-            ui.BendAxisChanged(group, next);
-        }
-        int AxisIndex() { return "XYZ".IndexOf(AxisName()); }
-        // 2026-11-08: the bar's ends say what its axis does on this finger (HandAxes.cs: Z bends IN / OUT, Y LEFT / RIGHT, X turns)
-        void BarWords() {
-            string l, r; bool f;
-            HandAxes.Ends(members.Count > 0 ? members[0].Name : "", Math.Max(0, AxisIndex()), out l, out r, out f);
-            if (l.StartsWith("-")) { l = "IN"; r = "OUT"; }
-            bend.LeftText = l; bend.RightText = r; bend.Invalidate();
-        }
-        void Apply() {
-            if (bases == null) return;
-            double d = bend.Value / (double)SLIDER_STEPS_PER_DEG;
-            string a = AxisName();
-            for (int i = 0; i < members.Count; i++) {
-                var r = members[i];
-                double v = PoseModel.Clamp(bases[i] + d * HandAxes.Sign(r.Name, AxisIndex()));   // the bar's right end is the joint's right end
-                if (a == "X") r.X = v; else if (a == "Y") r.Y = v; else r.Z = v;
-                r.Known = true; r.Moved = true;
-            }
-            ShowValue();
-            ui.GroupMoved();
-        }
-        void ShowValue() { value.Text = string.Format("{0:+0.0;-0.0;0.0} deg", bend.Value / (double)SLIDER_STEPS_PER_DEG); }
+    // a section's header: its name, and on the left the SECTION tick (key "section:<part>", the part's name in Nudge.cs):
+    // ticked, the part is one the left stick walks through (NudgeNav.cs); LT on the part ticks it too
+    internal SkinPanel SectionHead(string title, string part) {
+        var head = new SkinPanel { Dock = DockStyle.Top, Height = 32, Tint = Color.FromArgb(185, 40, 64, 96) };
+        string key = "section:" + part;
+        var tick = new SkinCheckBox { Width = 28, Height = 28, Checked = IsTicked(key), Location = new Point(6, 2), Tag = key };
+        tick.CheckedChanged += (o, e) => SetTicked(key, tick.Checked);
+        var name = new SkinLabel { Text = title, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Ink, Font = new Font("Segoe UI Semibold", 14f) };
+        head.Controls.Add(tick);
+        head.Controls.Add(name);
+        tick.BringToFront();
+        return head;
     }
 
     // called by a row: a slider is about to move (snapshot + light up the children) / moved / let go
     internal void RowPressed(Row r) {
         model.Mark();
-        RowHistory.Mark(poseGun, r);   // 2026-11-14: the row's own step
         var below = model.Skeleton.Descendants(r.Name);
         foreach (var row in rows) row.Lit = below.Contains(row.Model.Name);
         UpdateStatus();
@@ -721,11 +659,7 @@ partial class PoserUi : Form {
         foreach (var row in rows) { row.Lit = false; if (row.Model == r) row.PullFromModel(); }   // (2026-11-14: its ↶ lights up)
         try { model.Autosave(); } catch (IOException) { }
     }
-    internal void RowReset(Row r) { RowHistory.Mark(poseGun, r); Change(() => model.Set(r.Name, 0, 0, 0)); }
-    // 2026-11-14: a row's ↶ / ↷ (RowHistory.cs): only that row, only in the pose it is in
-    internal void RowHistoryStep(Row r, bool redo) { double x, y, z; if (RowHistory.Step(poseGun, r, redo, out x, out y, out z)) Change(() => model.Set(r.Name, x, y, z)); }
-    internal bool RowCanUndo(Row r) { return RowHistory.CanUndo(poseGun, r.Name); }
-    internal bool RowCanRedo(Row r) { return RowHistory.CanRedo(poseGun, r.Name); }
+    internal void RowReset(Row r) { Change(() => model.Set(r.Name, 0, 0, 0)); }
     internal void RowRemove(Row r) { Change(() => model.Remove(r.Name)); }
 
     // ---- the demo for the test (--demo): add the left fingers, then turn index_0 to 30 degrees ----------------------

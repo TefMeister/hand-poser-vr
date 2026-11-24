@@ -71,7 +71,7 @@ partial class Nudge : IDisposable {
     Form markForm;     // the window last clicked in this app: the strip goes on it
     Panel mark;
 
-    public Nudge() { Application.AddMessageFilter(new ClickWatch(this)); }
+    public Nudge() { Application.AddMessageFilter(new ClickWatch(this)); FancySlider.UserPressed += SliderPressed; }   // 2026-11-24: SliderUndo.cs
 
     // ---- the part clicked last (2026-11-08) ----
     readonly Dictionary<string, Control> sections = new Dictionary<string, Control>();
@@ -123,11 +123,13 @@ partial class Nudge : IDisposable {
         if (a == null) return ticked;
         var keys = new HashSet<string>();
         TagsOf(a, keys);
+        if (Navigate) { keys.Clear(); foreach (var b in ScopeTicks()) keys.Add((string)b.Tag); }   // 2026-11-24: every ticked section
         keys.IntersectWith(ticked);
         if (Navigate && keys.Count == 0 && PickedKey != null) keys.Add(PickedKey);   // nothing ticked there: the selected slider
         return keys;
     }
-    void Clicked(Control c) {
+    void Clicked(Control c, int msg) {
+        if (Navigate && msg == 0x207) { SectionClicked(c); return; }   // 2026-11-24: LT (Window View's middle button) picks a section
         string n = SectionOf(c);
         if (n == null) return;
         recent.Remove(n);
@@ -163,7 +165,7 @@ partial class Nudge : IDisposable {
                 var f = c as Form ?? (c != null ? c.FindForm() : null);
                 if (f != null) n.markForm = f;
                 n.TakeOwnership();
-                n.Clicked(c);
+                n.Clicked(c, k);
             }
             return false;
         }
@@ -232,7 +234,8 @@ partial class Nudge : IDisposable {
         pressStarted = false;
         mine = false;
         Owner = IsOwner();
-        Shade(Owner && anyTicked ? Active : Owner && Navigate ? NavSection : null);
+        if (Navigate) ShadeMany(Owner ? Scope() : null);   // 2026-11-24: every ticked section (NudgeNav.cs)
+        else Shade(Owner && anyTicked ? Active : null);
         if (Navigate) Frame(Owner);
         if (!Open()) return 0;
         int buttons; float sx, sy, lx = 0, ly = 0; bool ctrl;
@@ -248,6 +251,7 @@ partial class Nudge : IDisposable {
         if (Navigate) {   // 2026-11-24 (NudgeNav.cs): the left stick picks a slider in the highlighted part, A ticks it
             NavStick(lx, ly);
             if (mine && Pressed(buttons, B_A)) ToggleSelected();
+            if (mine && Pressed(buttons, B_X)) UndoLast(false);   // 2026-11-24 (Tefa: "X to undo"): the last slider used (SliderUndo.cs)
             Frame(true);
         }
         if (mine) {   // Y undo, B redo, X untick everything: the window clicked last only

@@ -229,6 +229,13 @@ class FancySlider : Control {
     public event EventHandler ValueChanged;   // any change, by the user or by code
     public event EventHandler Scroll;         // a change by the user only
     public event Action Pressed, Released;    // the mouse took hold / let go
+    public static event Action<FancySlider> UserPressed;   // 2026-11-24: any slider taken hold of by a person (SliderUndo.cs)
+    // put the slider at v as if it had been moved by hand: the same events a short drag gives (undo / redo, SliderUndo.cs)
+    public void SetByUser(int v) {
+        if (Pressed != null) Pressed();
+        UserSet(v);
+        if (Released != null) Released();
+    }
 
     public FancySlider() {
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
@@ -335,6 +342,7 @@ class FancySlider : Control {
         Focus();
         dragging = true;
         Capture = true;
+        if (UserPressed != null) UserPressed(this);   // 2026-11-24: the window's one undo (SliderUndo.cs), before the value moves
         if (Pressed != null) Pressed();
         UserSet(ValueAt(e.X));
     }
@@ -373,6 +381,7 @@ class FancySlider : Control {
             return;
         }
         base.OnMouseWheel(e);
+        if (UserPressed != null) UserPressed(this);
         if (Pressed != null) Pressed();
         UserSet(val + Math.Sign(e.Delta) * SmallChange);
         if (Released != null) Released();

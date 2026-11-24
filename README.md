@@ -127,15 +127,22 @@ being set); a file `reframework\data\hand_poserlend_preview.json` (any content)
   finger bar says what the joint is ("Right index finger: knuckle (base)", "Left thumb: tip joint", "Left wrist (turns the
   whole hand)"), with the game's own name after it; the joint list shows them too, and its filter finds "index", "thumb" or
   "wrist". `app/JointNames.cs` knows Village's and RE2 / RE3's names and the body's.
-- **Controller buttons** (2026-10-25; the buttons of 2026-11-09; the left stick 2026-11-24, Tefa: *"move through the sliders
-  with LS and tune the selected slider with RS, A to tick boxes to select multiple"*). In Window View's controller mode (left
-  stick click), in the part shaded dark yellow (the finger box, docked-wrist box or magazine box clicked last):
-  **left stick** picks a slider (a bright yellow frame; held, it keeps moving), **right stick** tunes it (left / right -1 / +1,
-  up / down +5 / -5, held repeats), **A** ticks or unticks the picked slider, so several can be tuned together (with ticks in
-  the part, the right stick moves the ticked ones), **Y** unticks everything, **right trigger** clicks where the pointer is
-  (A no longer clicks in this window). One UNDO takes a whole press back. (`app/Nudge.cs`, `app/NudgeNav.cs` read Window
-  View's shared block; `test
-av_test.py` checks it with a pretend block and a pretend game.)
+- **Controller buttons** (2026-10-25; the buttons of 2026-11-09; the sticks, sections and one undo 2026-11-24, Tefa). In
+  Window View's controller mode (left stick click; Window View 1.14 or newer):
+  - **LT** (left trigger, at the blue dot): ticks / unticks the SECTION under it (a finger box, the docked wrist, a magazine
+    box). Every section has its tick on the left of its title; the ticked sections are shaded dark yellow.
+  - **Left stick**: picks a slider (a bright yellow frame) inside the ticked sections, in screen order, skipping the sections
+    not ticked; with none ticked, inside the part clicked last. Held, it keeps moving.
+  - **Right stick**: tunes the picked slider (left / right -1 / +1, up / down +5 / -5, held repeats); with sliders ticked in
+    the sections, it moves the ticked ones together.
+  - **A**: ticks / unticks the picked slider, to tune several at once.
+  - **X**: undo on the last slider used (the same as the window's ↶; ↷ redoes). Only the last slider (or the ticked set moved
+    together) keeps its steps: moving another one forgets them, and so does another gun or spot.
+  - **Y**: every tick off. **B**: nothing yet.
+  - **RT** (right trigger, at the red dot): the left mouse click, the only click. A and X send no right click here.
+  (`app/Nudge.cs`, `app/NudgeNav.cs`, `app/SliderUndo.cs` read Window View's shared block; `test
+av_test.py` checks it with a
+  pretend block and a pretend game.) The finger boxes' BEND ALL bars are gone (2026-11-24); their tick is the section tick.
 - **Numbered spots** (2026-11-24): every hand spot of a gun has a fixed number (L1... left hand, R1... right hand, H1-H4
   the holsters, A the ammo pouch, M the map, F first aid), shown on the hand's line here and in Animation & Timing and Grip
   Zones. The SPOTS buttons pick a spot to tune its pose; FOLLOW THE GAME goes back to where the hands are. (SHOW, the hand

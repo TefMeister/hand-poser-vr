@@ -48,12 +48,22 @@ def children(hwnd):
     return out
 
 
-def post_click(h):
+def post_click(h, middle=False):
     lp = (8 << 16) | 8
-    user32.PostMessageW(h, WM_LBUTTONDOWN, 1, lp)
+    down, up, mk = (0x207, 0x208, 0x10) if middle else (WM_LBUTTONDOWN, WM_LBUTTONUP, 1)
+    user32.PostMessageW(h, down, mk, lp)
     time.sleep(0.05)
-    user32.PostMessageW(h, WM_LBUTTONUP, 0, lp)
+    user32.PostMessageW(h, up, 0, lp)
     time.sleep(0.4)
+
+
+def autosave_joints():
+    path = os.path.join(T, "appdata", "re3", "autosave.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f).get("joints", {})
+    except (OSError, ValueError):
+        return {}
 
 
 def grab(name):
@@ -110,17 +120,23 @@ def main():
     kids = children(hwnd)
     head = [h for h, t in kids if t == "LEFT INDEX"]
     check("a LEFT INDEX box", bool(head), ", ".join(sorted(set(t for _, t in kids if t.startswith("LEFT")))))
+    check("no BEND ALL bar any more", not any(t == "BEND ALL" for _, t in kids))
     if head:
         post_click(head[0])
     before = len(commands())
-    pulse(wv, LSTICK_Y, -1.0)   # the first push: the part's first slider (BEND ALL)
-    pulse(wv, LSTICK_Y, -1.0)   # down: the first joint row
+    pulse(wv, LSTICK_Y, -1.0)   # the first push: the part's first slider (the knuckle's first)
     pulse(wv, LSTICK_X, 1.0)    # right: its second slider
     grab("2-picked.png")
     pulse(wv, STICK_X, 1.0)     # nothing ticked: the right stick steps the selected slider
     time.sleep(0.5)
     new = commands()[before:]
     check("the right stick stepped the selected slider (no tick)", any("hold=15" in l for l in new), "%d new commands" % len(new))
+    stepped = commands()[-1] if commands() else ""
+    pulse(wv, BUTTONS, 8, as_int=True)   # X: undo
+    time.sleep(0.5)
+    last = commands()[-1] if commands() else ""
+    check("X undoes the last slider: the index knuckle back to 0", ("l_hand_index_0=[0, 0, 0]" in last or "l_hand_index_0=[0.0, 0.0, 0.0]" in last) and last != stepped,
+          stepped.strip() + " -> " + last.strip())
     pulse(wv, BUTTONS, 1, as_int=True)   # A: tick it
     pulse(wv, LSTICK_X, -1.0)            # left: the first slider of that row
     pulse(wv, BUTTONS, 1, as_int=True)   # A: tick that one too
@@ -130,6 +146,26 @@ def main():
     time.sleep(0.5)
     new = commands()[before:]
     check("with two ticked, the right stick steps (a command went out)", len(new) > 0)
+    pulse(wv, BUTTONS, 2, as_int=True)   # Y: every tick off
+
+    # LT (Window View 1.14 sends the middle button): the thumb and the middle finger picked as sections; the left stick then
+    # walks the thumb's three rows and goes on to the middle finger, past the index finger
+    kids = children(hwnd)
+    for name in ("LEFT THUMB", "LEFT MIDDLE"):
+        h = [x for x, t in kids if t == name]
+        if h:
+            post_click(h[0], middle=True)
+    grab("4-two-sections.png")
+    time.sleep(2.5)
+    was = autosave_joints()              # the index finger was moved above on purpose: compare with now
+    for _ in range(3):
+        pulse(wv, LSTICK_Y, -1.0)        # down, down, down: thumb base -> middle -> tip -> the middle finger's knuckle
+    pulse(wv, STICK_X, 1.0)
+    time.sleep(2.5)                      # the autosave once the stick is let go
+    joints = autosave_joints()
+    moved = sorted(k for k, v in joints.items() if any(abs(x - y) > 0.01 for x, y in zip(v, was.get(k, [0, 0, 0]))))
+    check("down past the thumb lands on the MIDDLE finger, not the index", moved == ["l_hand_middle_0"], ", ".join(moved))
+    grab("5-on-the-middle-finger.png")
     user32.PostMessageW(hwnd, 0x10, 0, 0)   # WM_CLOSE
     time.sleep(2)
     fake.terminate()

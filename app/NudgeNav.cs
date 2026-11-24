@@ -11,6 +11,15 @@
 //   right stick: steps the part's ticked sliders, or the selected one when nothing in the part is ticked
 //   A: ticks / unticks the selected slider's box. Window View still sends A as a right click: this window ignores right clicks
 //   RT: Window View's click, as before; a click on a slider or its tick box also selects it
+//
+// 2026-11-24 evening (Tefa: "leave the tick marks, these will serve as the chosen section so if i want LS to move through multiple
+// sections, i can tick the thumb and middle finger and it will bypass the index finger if i keep going down", "LT needs to now
+// select the whole section of sliders, for example the thumb sliders and tick the box of that section", "X to undo"):
+//   every part has a SECTION tick in its header (key "section:<part>"). With any section ticked, the left stick walks the sliders
+//     of all the ticked sections (in screen order, skipping the others) and they are all shaded; with none, the part clicked last
+//   LT: Window View 1.14 sends the middle button at the left dot while a helper holds the buttons; here it ticks / unticks the
+//     section of the part under it (and selects its first slider when nothing in the sections is selected)
+//   X: undo on the last slider used (SliderUndo.cs)
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -37,13 +46,47 @@ partial class Nudge {
         }
     }
 
+    static bool IsSectionTick(CheckBox b) { return ((b.Tag as string) ?? "").StartsWith("section:"); }
+
+    // the parts whose section tick is ticked, in the order they were named
+    List<Control> ChosenSections() {
+        var found = new List<Control>();
+        foreach (var kv in sections) {
+            var c = kv.Value;
+            if (c == null || c.IsDisposed) continue;
+            var t = FindSectionTick(c, "section:" + kv.Key);
+            if (t != null && t.Checked) found.Add(c);
+        }
+        return found;
+    }
+    static CheckBox FindSectionTick(Control c, string key) {
+        foreach (Control k in c.Controls) {
+            var b = k as CheckBox;
+            if (b != null && (b.Tag as string) == key) return b;
+            var r = FindSectionTick(k, key);
+            if (r != null) return r;
+        }
+        return null;
+    }
+    // where the left stick walks and the right stick reaches: the ticked sections, else the part clicked last
+    List<Control> Scope() {
+        var chosen = ChosenSections();
+        if (chosen.Count > 0) return chosen;
+        var n = NavSection;
+        return n == null ? chosen : new List<Control> { n };
+    }
+    List<CheckBox> ScopeTicks() {
+        var all = new List<CheckBox>();
+        foreach (var c in Scope()) all.AddRange(Ticks(c));
+        return all;
+    }
+
     // the selected slider's key, when it is in the highlighted part (null = none)
     public string PickedKey { get { return PickedBox() != null ? pickedKey : null; } }
 
     CheckBox PickedBox() {
-        var s = NavSection;
-        if (s == null || pickedKey == null) return null;
-        foreach (var b in Ticks(s)) if ((string)b.Tag == pickedKey) return b;
+        if (pickedKey == null) return null;
+        foreach (var b in ScopeTicks()) if ((string)b.Tag == pickedKey) return b;
         return null;
     }
 
@@ -54,7 +97,7 @@ partial class Nudge {
         while (stack.Count > 0) {
             var c = stack.Pop();
             var b = c as CheckBox;
-            if (b != null && IsTick(b) && b.Tag is string && b.Visible) all.Add(b);
+            if (b != null && IsTick(b) && b.Tag is string && !IsSectionTick(b) && b.Visible) all.Add(b);
             foreach (Control k in c.Controls) stack.Push(k);
         }
         return all;
@@ -77,9 +120,7 @@ partial class Nudge {
     }
 
     void Move(int dir) {
-        var s = NavSection;
-        if (s == null) return;
-        var boxes = Ticks(s);
+        var boxes = ScopeTicks();
         if (boxes.Count == 0) return;
         var cur = PickedBox();
         CheckBox best = null;
@@ -129,11 +170,40 @@ partial class Nudge {
         if (b != null && b.Enabled) b.Checked = !b.Checked;
     }
 
+    // LT (the middle button from Window View 1.14): the section of the part under it ticked / unticked
+    void SectionClicked(Control c) {
+        string n = SectionOf(c);
+        Control part;
+        if (n == null || !sections.TryGetValue(n, out part)) return;
+        recent.Remove(n);
+        recent.Insert(0, n);
+        var t = FindSectionTick(part, "section:" + n);
+        if (t == null) return;
+        t.Checked = !t.Checked;
+        if (t.Checked && PickedBox() == null && Ticks(part).Count > 0) { pickedKey = null; Move(4); }   // its first slider
+    }
+
+    // the ticked sections (or the part clicked last) shaded dark yellow while this window answers the buttons
+    readonly Dictionary<Control, object> shadedMany = new Dictionary<Control, object>();
+    void ShadeMany(List<Control> want) {
+        var keep = new HashSet<Control>(want ?? new List<Control>());
+        foreach (var c in new List<Control>(shadedMany.Keys)) {
+            if (keep.Contains(c)) continue;
+            if (!c.IsDisposed) SetTint(c, shadedMany[c]);
+            shadedMany.Remove(c);
+        }
+        foreach (var c in keep) {
+            if (shadedMany.ContainsKey(c) || c.IsDisposed) continue;
+            shadedMany[c] = GetTint(c);
+            SetTint(c, ACTIVE_TINT);
+        }
+    }
+
     // a click on a tick box or a slider selects that slider
     void NavClicked(Control c) {
         var b = c as CheckBox;
         if (b == null && c is FancySlider) b = TickOf((FancySlider)c);
-        if (b != null && IsTick(b) && b.Tag is string) pickedKey = (string)b.Tag;
+        if (b != null && IsTick(b) && b.Tag is string && !IsSectionTick(b)) pickedKey = (string)b.Tag;
     }
 
     // the yellow frame on the selected slider and its box (only while this window answers the buttons)
