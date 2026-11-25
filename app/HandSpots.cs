@@ -89,6 +89,7 @@ static class HandSpots {
         { "two magazines in hand", "magazine in hand" }, { "spare in hand, docked on the magazine", "magazine" },
         { "spare in hand, pulling the magazine out", "magazine in hand" }, { "spare in hand, magazine still in the gun", "magazine in hand" },
         { "old magazine in palm, the new one going in", "two magazines in hand" },
+        { "top of the barrel", "insert point" },   // 2026-11-25 (Visceral RE8 b170): the GM 79's top hold ahead of the hinge
     };
     public static List<string> Fallbacks(string gun, string spot) {
         var list = new List<string>();
