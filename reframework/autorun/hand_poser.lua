@@ -371,7 +371,10 @@ local function current_spot()
     if v == 18 then return "spare in hand, pulling the magazine out" end
     if v == 19 then return "spare in hand, magazine still in the gun" end
     if v == 22 then return "two magazines in hand, swapped round" end   -- 2026-11-25: Visceral RE8 b163, after LT swaps the two in the palm
-    if v == 23 then return "top of the barrel" end   -- 2026-11-25: Visceral RE8 b170, the GM 79's top hold ahead of the hinge (opens / shuts it)
+    if v == 23 then return "top of the barrel" end
+    if v == 24 then return "pulling the spent shell" end   -- 2026-11-25: Visceral RE8 b170, thumb and finger on the GM 79's spent shell
+    if v == 25 then return "pushing the live shell in" end   -- 2026-11-25: Visceral RE8 b170, after the spent one is out
+    if v == 26 then return "spent shell in hand" end   -- 2026-11-25: Visceral RE8 b170, carried until LG is let go   -- 2026-11-25: Visceral RE8 b170, the GM 79's top hold ahead of the hinge (opens / shuts it)
     if v == 21 then return "old magazine in palm, the new one going in" end   -- 2026-11-25: Visceral RE8 b162, the two-magazine reload's last step
     if v == 20 then return "shell port" end   -- 2026-11-23: shells docked at the loading port (Visceral RE2 / RE3, src/guns/stage.h)
     return ""
@@ -474,7 +477,9 @@ local FREE_UNLESS_POSED = { ["magazine in hand"] = true, ["ready"] = true, ["fre
 local SPOT_FALLBACK = { ["two magazines in hand"] = "magazine in hand", ["spare in hand, docked on the magazine"] = "magazine",
                         ["spare in hand, pulling the magazine out"] = "magazine in hand", ["spare in hand, magazine still in the gun"] = "magazine in hand",
                         ["old magazine in palm, the new one going in"] = "two magazines in hand",
-                        ["top of the barrel"] = "insert point",   -- 2026-11-25 (Visceral RE8 b170): the GM 79's top hold, until posed
+                        ["top of the barrel"] = "insert point",
+                        ["pulling the spent shell"] = "insert point", ["pushing the live shell in"] = "insert point",
+                        ["spent shell in hand"] = "rounds from the pouch",   -- 2026-11-25 (Visceral RE8 b170): the GM 79's top hold, until posed
                         ["two magazines in hand, swapped round"] = "two magazines in hand" }
 -- 2026-11-23 (Tefa, the LEMI: "as i'm taking the mag out, Ethans middle finger and thumb close more around it as it is coming
 -- out"): while a pistol's magazine is on the grip's line (Visceral RE8's bridge slot 279 = 1 + how far out, 0 = not on the line)

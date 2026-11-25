@@ -31,7 +31,7 @@ static class SpotNumbers {
         "spare in hand, docked on the magazine", "spare in hand, pulling the magazine out", "spare in hand, magazine still in the gun",
         "old magazine in palm, the new one going in",
         "ready at well", "ready at handle", "handle", "ready at drum", "ready on drum", "drum", "ready on hammer", "hammer",
-        "ready at insert point", "insert point", "top of the barrel", "rounds from the pouch", "shell port", "ready at front grip",
+        "ready at insert point", "insert point", "top of the barrel", "pulling the spent shell", "pushing the live shell in", "spent shell in hand", "rounds from the pouch", "shell port", "ready at front grip",
     };
     static readonly string[] RIGHT_ORDER = {
         "right hand on the cover", "right hand over the hammer", "right hand on the bolt", "right hand on the bolt at the back",
